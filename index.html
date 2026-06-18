@@ -1663,45 +1663,34 @@ async function loadWeather() {
 let tripMpg = null;
 
 // Reservation data extracted from Gmail confirmations
-const reservations = {
-  0: {
-    type: '🏕',
-    name: 'Morefield RV & Campground',
-    checkin: 'Jun 19, 2026',
-    checkout: 'Jun 20, 2026',
-    address: 'Mesa Verde National Park, CO 81330',
-    phone: '(970) 529-4465',
-    note: 'Aramark Leisure · arrive before 9pm gate close'
-  },
-  3: {
-    type: '🏨',
-    name: 'Fairfield by Marriott Tulsa Central',
-    confirmation: '#86643268',
-    checkin: 'Jun 21, 2026',
-    checkout: 'Jun 22, 2026',
-    address: '3214 S 79th E Ave, Tulsa, OK 74145',
-    phone: '(918) 664-7241',
-    note: 'Free breakfast. Card on file — check-in anytime after 3pm'
-  },
-  4: {
-    type: '🏕',
-    name: 'Bentonville Bike Camp',
-    confirmation: '#R00000000623',
-    checkin: 'Jun 22 · 2pm check-in',
-    checkout: 'Jun 23 · 11am check-out',
-    address: 'Bentonville, AR',
-    note: 'Hosts: Jason & Julie · balance may be due at arrival'
-  },
-  6: {
-    type: '⛺',
-    name: 'Loft Mountain Campground',
-    confirmation: '#0877437182-1',
-    checkin: 'Jun 24, 2026 · 1 night',
-    checkout: 'Jun 25, 2026',
-    address: 'Shenandoah National Park, VA (Skyline Dr MP 79.5)',
-    note: 'recreation.gov · arrive before dusk'
-  }
-};
+// Reservations — loaded from Supabase, keyed by stop_index
+let reservations = {};
+
+async function loadReservations() {
+  if (!isOwner) return; // owner-only data
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/reservations?select=*&order=stop_index`, {
+      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+    });
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return;
+    reservations = {};
+    const TYPE_ICON = { hotel: '🏨', campground: '🏕' };
+    rows.forEach(r => {
+      reservations[r.stop_index] = {
+        type: TYPE_ICON[r.type] || '📋',
+        name: r.property_name,
+        confirmation: r.confirmation,
+        checkin: r.checkin,
+        checkout: r.checkout,
+        address: r.address,
+        phone: r.phone,
+        note: r.note
+      };
+    });
+    renderOwnerPanel(); // re-render with live data
+  } catch(e) { /* silent fail */ }
+}
 
 function getStopStatus(i) { return localStorage.getItem('ds_stop_' + i) || 'upcoming'; }
 function setStopStatus(i, s) { localStorage.setItem('ds_stop_' + i, s); }
@@ -1835,6 +1824,7 @@ if (isOwner) {
   const top = document.getElementById('ownerTop');
   if (top) top.style.display = 'flex';
   renderOwnerPanel();
+  loadReservations(); // async — re-renders panel when data arrives
 }
 
 const siteUrl = window.location.hostname !== 'localhost' ? window.location.href : 'your-site.netlify.app';
