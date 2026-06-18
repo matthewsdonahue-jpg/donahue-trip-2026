@@ -1129,6 +1129,8 @@ async function loadStops() {
         stops = parsed;
         buildMap();
         renderItinerary();
+        renderParksAndStates();
+        renderHeaderBadges();
       }
     }
   } catch(e) {}
