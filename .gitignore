@@ -1,3 +1,5 @@
 .DS_Store
 deploy.sh
+push-to-github.sh
+fix-git-and-push.sh
 *.log
