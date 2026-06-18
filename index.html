@@ -495,6 +495,32 @@
     font-size: 8px; letter-spacing: 0.06em; color: var(--faint);
     text-align: right; margin-top: 4px;
   }
+  .owner-stop-res-badge {
+    font-size: 9px; color: var(--gold); margin-left: auto; flex-shrink: 0;
+    letter-spacing: 0.04em; opacity: 0.8;
+  }
+
+  /* Reservation cards */
+  .owner-res-list {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .owner-res-card {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .owner-res-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px; border-bottom: 1px solid var(--border);
+  }
+  .owner-res-type { font-size: 16px; flex-shrink: 0; }
+  .owner-res-name { font-size: 11px; color: var(--cream); flex: 1; }
+  .owner-res-date { font-size: 9px; color: var(--gold); letter-spacing: 0.04em; }
+  .owner-res-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .owner-res-row { display: flex; gap: 8px; align-items: baseline; }
+  .owner-res-label { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); min-width: 62px; flex-shrink: 0; }
+  .owner-res-val { font-size: 10px; color: var(--text); line-height: 1.4; }
+  .owner-res-val a { color: var(--sky); text-decoration: none; }
+  .owner-res-conf { font-size: 10px; color: var(--gold); font-weight: 600; }
 
   /* ── iPad breakpoint (768px+) ── */
   @media (min-width: 768px) {
@@ -537,6 +563,13 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
+    }
+
+    /* Reservations 2-up on iPad */
+    body.is-owner .owner-res-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
     }
   }
 
@@ -1629,6 +1662,47 @@ async function loadWeather() {
 // ── Owner Panel ──────────────────────────────────────────────
 let tripMpg = null;
 
+// Reservation data extracted from Gmail confirmations
+const reservations = {
+  0: {
+    type: '🏕',
+    name: 'Morefield RV & Campground',
+    checkin: 'Jun 19, 2026',
+    checkout: 'Jun 20, 2026',
+    address: 'Mesa Verde National Park, CO 81330',
+    phone: '(970) 529-4465',
+    note: 'Aramark Leisure · arrive before 9pm gate close'
+  },
+  3: {
+    type: '🏨',
+    name: 'Fairfield by Marriott Tulsa Central',
+    confirmation: '#86643268',
+    checkin: 'Jun 21, 2026',
+    checkout: 'Jun 22, 2026',
+    address: '3214 S 79th E Ave, Tulsa, OK 74145',
+    phone: '(918) 664-7241',
+    note: 'Free breakfast. Card on file — check-in anytime after 3pm'
+  },
+  4: {
+    type: '🏕',
+    name: 'Bentonville Bike Camp',
+    confirmation: '#R00000000623',
+    checkin: 'Jun 22 · 2pm check-in',
+    checkout: 'Jun 23 · 11am check-out',
+    address: 'Bentonville, AR',
+    note: 'Hosts: Jason & Julie · balance may be due at arrival'
+  },
+  6: {
+    type: '⛺',
+    name: 'Loft Mountain Campground',
+    confirmation: '#0877437182-1',
+    checkin: 'Jun 24, 2026 · 1 night',
+    checkout: 'Jun 25, 2026',
+    address: 'Shenandoah National Park, VA (Skyline Dr MP 79.5)',
+    note: 'recreation.gov · arrive before dusk'
+  }
+};
+
 function getStopStatus(i) { return localStorage.getItem('ds_stop_' + i) || 'upcoming'; }
 function setStopStatus(i, s) { localStorage.setItem('ds_stop_' + i, s); }
 function cycleStopStatus(i) {
@@ -1689,12 +1763,14 @@ function renderOwnerPanel() {
   const STATUS_ICON = { upcoming: '○', arrived: '✓', departed: '→' };
   const stopRows = stops.map((s, i) => {
     const st = getStopStatus(i);
+    const haRes = !!reservations[i];
     return `<div class="owner-stop-row ${st}" onclick="cycleStopStatus(${i})" role="button">
       <div class="owner-stop-icon">${STATUS_ICON[st]}</div>
       <div class="owner-stop-body">
         <div class="owner-stop-name">${s.name}</div>
         <div class="owner-stop-date">${s.date}${s.state ? ' · ' + s.state : ''}</div>
       </div>
+      ${haRes ? '<div class="owner-stop-res-badge">📋 res</div>' : ''}
     </div>`;
   }).join('');
 
@@ -1714,8 +1790,37 @@ function renderOwnerPanel() {
       <div class="owner-fuel-stat"><div class="owner-fuel-label">¢ / Mile</div><div class="owner-fuel-val" id="ownerCpm">—</div></div>
     </div>`;
 
+  // Reservations section
+  const resCards = Object.entries(reservations).map(([idx, r]) => {
+    const stop = stops[parseInt(idx)];
+    const stopName = stop ? stop.name : '';
+    const mapsUrl = stop ? `https://maps.apple.com/?q=${encodeURIComponent(r.address)}&dirflg=d` : '#';
+    return `
+    <div class="owner-res-card">
+      <div class="owner-res-header">
+        <div class="owner-res-type">${r.type}</div>
+        <div class="owner-res-name">${r.name}</div>
+        <div class="owner-res-date">${r.checkin.split('·')[0].trim()}</div>
+      </div>
+      <div class="owner-res-body">
+        ${r.confirmation ? `<div class="owner-res-row"><div class="owner-res-label">Conf #</div><div class="owner-res-conf">${r.confirmation}</div></div>` : ''}
+        <div class="owner-res-row"><div class="owner-res-label">Check-in</div><div class="owner-res-val">${r.checkin}</div></div>
+        <div class="owner-res-row"><div class="owner-res-label">Check-out</div><div class="owner-res-val">${r.checkout}</div></div>
+        <div class="owner-res-row"><div class="owner-res-label">Address</div><div class="owner-res-val"><a href="${mapsUrl}" target="_blank">${r.address}</a></div></div>
+        ${r.phone ? `<div class="owner-res-row"><div class="owner-res-label">Phone</div><div class="owner-res-val"><a href="tel:${r.phone}">${r.phone}</a></div></div>` : ''}
+        ${r.note ? `<div class="owner-res-row"><div class="owner-res-label">Note</div><div class="owner-res-val">${r.note}</div></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  const reservationsHtml = `
+    <div>
+      <div class="owner-dash-label">Reservations · ${Object.keys(reservations).length} confirmed</div>
+      <div class="owner-res-list">${resCards}</div>
+    </div>`;
+
   top.innerHTML = `<div class="owner-dash-label">Command Center</div>` +
-    navHtml + quickHtml + checklistHtml + fuelStatsHtml;
+    navHtml + quickHtml + checklistHtml + reservationsHtml + fuelStatsHtml;
   updateOwnerFuelStats();
 }
 
