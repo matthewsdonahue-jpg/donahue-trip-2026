@@ -1,0 +1,29 @@
+Donahue Road Trip 2026 — Links
+================================
+
+TRIP SITE (family view)
+https://donahue-trip-2026.netlify.app/
+
+TRIP SITE (owner view — location update, edit stops)
+https://donahue-trip-2026.netlify.app/?owner=true
+
+FUEL TRACKER (iPhone PWA — save to home screen)
+https://donahue-trip-2026.netlify.app/fuel-quick.html
+
+ITINERARY EDITOR (add/edit/reorder stops, publish to site)
+https://donahue-trip-2026.netlify.app/editor.html
+
+--------------------------------
+SUPABASE DASHBOARD
+https://supabase.com/dashboard/project/sizbwulpzanxvpvooxiz
+
+NETLIFY DASHBOARD
+https://app.netlify.com/sites/donahue-trip-2026
+--------------------------------
+
+NOTES
+- Family shares the plain link (no ?owner=true)
+- Owner view: update Dream Weaver's live location, edit itinerary inline
+- Fuel Tracker: tap ⋯ > Add to Home Screen on iPhone/iPad for PWA install
+- Itinerary Editor: publish button syncs stops to the live site instantly
+- To redeploy: drag donahue-trip folder to netlify.app/drop

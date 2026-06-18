@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dream Weaver — Donahue Road Trip 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #1C1A17;
+    --surface: #252320;
+    --surface2: #2E2B27;
+    --border: #3A3730;
+    --text: #F0EDE6;
+    --muted: #8A8780;
+    --faint: #5A5750;
+    --gold: #C9963A;
+    --gold-light: #E8B85A;
+    --gold-dim: #7A5A1E;
+    --sage: #7A9E7E;
+    --sage-light: #9DBF9E;
+    --rust: #B85C38;
+    --rust-light: #D4744E;
+    --sky: #5B8DB8;
+    --cream: #F0EDE6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg); color: var(--text); font-family: 'IBM Plex Mono', monospace; }
+  body { max-width: 620px; margin: 0 auto; padding: 0 16px 80px; }
+
+  /* ── Header ── */
+  .site-header {
+    padding: 32px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+    position: relative;
+  }
+  .header-bg {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      60deg, transparent, transparent 18px,
+      rgba(201,150,58,0.04) 18px, rgba(201,150,58,0.04) 19px
+    );
+    pointer-events: none;
+  }
+  .van-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+  .trip-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--cream);
+  }
+  .trip-title em { font-style: italic; color: var(--gold-light); }
+  .trip-sub {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-top: 8px;
+    text-transform: uppercase;
+  }
+  .header-badges {
+    display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap;
+  }
+  .hbadge {
+    font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 3px; border: 1px solid;
+  }
+  .hbadge.np   { color: var(--sage); border-color: var(--sage); }
+  .hbadge.bike { color: var(--rust-light); border-color: var(--rust); }
+  .hbadge.r66  { color: var(--sky); border-color: var(--sky); }
+
+  /* ── Map ── */
+  .map-wrap {
+    border-radius: 10px; overflow: hidden;
+    border: 1px solid var(--border);
+    margin-bottom: 20px;
+    position: relative;
+  }
+  #map { width: 100%; height: 340px; }
+  /* Leaflet dark override */
+  .leaflet-container { background: #1C1A17 !important; }
+  .leaflet-popup-content-wrapper { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+  .leaflet-popup-tip { background: var(--surface2); }
+  .leaflet-popup-content { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+  .map-legend {
+    display: flex; gap: 16px; padding: 10px 14px;
+    background: var(--surface); border-top: 1px solid var(--border);
+    align-items: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .legend-dot.visited { background: var(--faint); }
+  .legend-dot.current { background: var(--gold); }
+  .legend-dot.upcoming { background: transparent; border: 1.5px solid var(--muted); }
+
+  /* ── Location card ── */
+  .loc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .loc-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold), var(--gold-dim));
+  }
+  .loc-eyebrow {
+    font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); flex-shrink: 0; }
+  .live-dot.live { background: var(--gold); animation: goldpulse 2s infinite; }
+  @keyframes goldpulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .loc-name { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 3px; color: var(--cream); }
+  .loc-time { font-size: 10px; color: var(--muted); }
+  .eta-strip { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .eta-item { flex: 1; }
+  .eta-label { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+  .eta-val { font-size: 13px; color: var(--cream); }
+
+  /* ── Update button ── */
+  .update-wrap { margin-bottom: 20px; }
+  .update-btn {
+    width: 100%; background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+    color: var(--bg); border: none; border-radius: 8px;
+    padding: 14px 20px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; letter-spacing: 0.08em; font-weight: 500;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    gap: 8px; transition: opacity 0.15s;
+  }
+  .update-btn:hover { opacity: 0.88; }
+  .update-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .owner-note { font-size: 9px; letter-spacing: 0.06em; color: var(--faint); text-align: center; margin-top: 7px; text-transform: uppercase; }
+
+  /* ── Section head ── */
+  .section-head {
+    font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .section-head::before { content: '//  '; color: var(--faint); }
+
+  /* ── Photos ── */
+  .photos-link-card {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 24px;
+    text-decoration: none; transition: border-color 0.15s;
+  }
+  .photos-link-card:hover { border-color: var(--gold); }
+  .photos-link-left { display: flex; align-items: center; gap: 14px; }
+  .photos-link-icon { font-size: 28px; line-height: 1; }
+  .photos-link-title { font-family: 'Playfair Display', serif; font-size: 15px; color: var(--cream); margin-bottom: 2px; }
+  .photos-link-sub { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .photos-link-arrow { font-size: 18px; color: var(--gold); }
+
+  /* ── Itinerary ── */
+  .itinerary-wrap { margin-bottom: 26px; }
+  .stop { display: flex; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .stop:last-child { border-bottom: none; }
+  .stop-left { padding-top: 3px; flex-shrink: 0; }
+  .stop-circle { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--faint); background: var(--bg); }
+  .stop-circle.active { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 8px rgba(201,150,58,0.5); }
+  .stop-circle.done { background: var(--faint); border-color: var(--faint); }
+  .stop-info { flex: 1; min-width: 0; }
+  .stop-date { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 3px; }
+  .stop-name { font-family: 'Playfair Display', serif; font-size: 15px; color: var(--cream); margin-bottom: 2px; }
+  .stop-name.done { color: var(--muted); }
+  .stop-detail { font-size: 10px; color: var(--muted); letter-spacing: 0.03em; }
+  .stop-tags { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+  .stag { font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; border: 1px solid; }
+  .stag-stay  { color: var(--sage); border-color: var(--sage); background: rgba(122,158,126,0.08); }
+  .stag-drive { color: var(--gold); border-color: var(--gold-dim); background: rgba(201,150,58,0.06); }
+  .stag-np    { color: var(--sage-light); border-color: var(--sage); background: rgba(122,158,126,0.08); }
+  .stag-bike  { color: var(--rust-light); border-color: var(--rust); background: rgba(184,92,56,0.08); }
+  .stag-r66   { color: var(--sky); border-color: var(--sky); background: rgba(91,141,184,0.08); }
+  .stag-waypoint { color: var(--muted); border-color: var(--faint); background: rgba(90,87,80,0.08); }
+  .stag-sp    { color: #9DBF9E; border-color: #7A9E7E; background: rgba(122,158,126,0.08); }
+  .stag-poi   { color: #C9963A; border-color: #7A5A1E; background: rgba(201,150,58,0.06); }
+  .stop-tbd { opacity: 0.5; }
+
+  /* Edit controls */
+  .stop-actions { margin-left: auto; flex-shrink: 0; padding-top: 1px; }
+  .stop-edit-btn { background: none; border: none; cursor: pointer; color: var(--faint); font-size: 12px; padding: 3px 5px; border-radius: 4px; }
+  .stop-edit-btn:hover { color: var(--gold); background: rgba(201,150,58,0.1); }
+  .add-stop-btn {
+    font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--gold); background: rgba(201,150,58,0.1);
+    border: 1px solid var(--gold-dim); border-radius: 4px;
+    padding: 4px 10px; cursor: pointer;
+  }
+  .add-stop-btn:hover { background: rgba(201,150,58,0.18); }
+
+  /* ── Edit modal ── */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--surface2); border-radius: 12px; padding: 24px; width: 100%; max-width: 420px; border: 1px solid var(--border); }
+  .modal h2 { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 400; color: var(--cream); margin-bottom: 18px; }
+  .field { margin-bottom: 13px; }
+  .field label { display: block; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+  .field input, .field select {
+    width: 100%; border: 1px solid var(--border); border-radius: 6px;
+    padding: 9px 11px; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+    color: var(--cream); background: var(--bg);
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--gold); }
+  .field select option { background: var(--bg); }
+  .field-row { display: flex; gap: 8px; }
+  .field-row .field { flex: 1; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .btn-save {
+    flex: 1; background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+    color: var(--bg); border: none; border-radius: 6px; padding: 11px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    letter-spacing: 0.06em; font-weight: 500; cursor: pointer;
+  }
+  .btn-cancel { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 11px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); cursor: pointer; }
+  .btn-cancel:hover { border-color: var(--muted); }
+  .btn-delete { background: none; border: 1px solid var(--faint); border-radius: 6px; padding: 11px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--rust-light); cursor: pointer; }
+  .btn-delete:hover { border-color: var(--rust); }
+
+  /* ── Fuel section ── */
+  .fuel-section { margin-bottom: 26px; }
+  .fuel-dash-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px; margin-bottom: 12px;
+    position: relative; overflow: hidden;
+  }
+  .fuel-dash-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold), var(--gold-dim));
+  }
+  .fuel-gauge-wrap { display: flex; justify-content: center; margin-bottom: 14px; }
+  .fuel-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .fuel-stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 10px; text-align: center; }
+  .fuel-stat-label { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-bottom: 3px; }
+  .fuel-stat-val { font-size: 14px; font-weight: 500; color: var(--cream); }
+  .fuel-alert-strip {
+    border-radius: 7px; padding: 9px 13px; font-size: 10px;
+    letter-spacing: 0.04em; margin-bottom: 12px; display: none;
+    border: 1px solid;
+  }
+  .fuel-alert-strip.low  { color: var(--gold-light); background: rgba(201,150,58,0.1); border-color: var(--gold-dim); }
+  .fuel-alert-strip.fill { color: var(--rust-light); background: rgba(184,92,56,0.12); border-color: var(--rust); }
+  .fuel-alert-strip.show { display: block; }
+
+  .fuel-log-item {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 11px 0; border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .fuel-log-item:last-child { border-bottom: none; }
+  .fuel-log-left { flex: 1; }
+  .fuel-log-date { font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
+  .fuel-log-loc  { color: var(--cream); margin-bottom: 1px; }
+  .fuel-log-det  { font-size: 9px; color: var(--muted); }
+  .fuel-log-right { text-align: right; flex-shrink: 0; padding-left: 10px; }
+  .fuel-log-cost { font-size: 14px; font-weight: 500; color: var(--gold); }
+  .fuel-log-sub  { font-size: 9px; color: var(--muted); margin-top: 1px; }
+  .fuel-open-link {
+    display: block; width: 100%; text-align: center; padding: 12px;
+    background: rgba(201,150,58,0.08); border: 1px solid var(--gold-dim);
+    border-radius: 8px; color: var(--gold); text-decoration: none;
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    margin-top: 10px;
+  }
+  .fuel-open-link:hover { background: rgba(201,150,58,0.15); }
+
+  /* ── Parks & States ── */
+  .parks-section { margin-bottom: 26px; }
+  .tracker-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; margin-bottom: 10px;
+  }
+  .tracker-sub { font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+  .park-list { display: flex; flex-direction: column; gap: 8px; }
+  .park-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid var(--border);
+  }
+  .park-item:last-child { border-bottom: none; }
+  .park-icon { font-size: 16px; flex-shrink: 0; width: 24px; text-align: center; }
+  .park-info { flex: 1; }
+  .park-name { font-size: 13px; color: var(--cream); font-family: 'Playfair Display', serif; }
+  .park-state-badge { font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+  .park-status { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; }
+  .park-status.visited { color: var(--sage-light); background: rgba(122,158,126,0.15); border: 1px solid rgba(122,158,126,0.3); }
+  .park-status.upcoming { color: var(--faint); border: 1px solid var(--faint); }
+  .states-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+  .state-chip {
+    font-size: 10px; font-weight: 500; letter-spacing: 0.05em;
+    padding: 5px 9px; border-radius: 5px; border: 1px solid;
+    transition: all 0.2s;
+  }
+  .state-chip.visited  { color: var(--sage-light); border-color: var(--sage); background: rgba(122,158,126,0.12); }
+  .state-chip.current  { color: var(--gold); border-color: var(--gold); background: rgba(201,150,58,0.15); font-weight: 700; }
+  .state-chip.upcoming { color: var(--faint); border-color: #3A3730; background: transparent; }
+  .states-note { font-size: 9px; color: var(--faint); margin-top: 10px; letter-spacing: 0.04em; }
+
+    /* ── Trip Stats Strip ── */
+  .stats-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; margin-bottom: 16px;
+  }
+  .stat-cell {
+    background: var(--surface); padding: 12px 8px;
+    text-align: center;
+  }
+  .stat-cell-label { font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+  .stat-cell-val   { font-size: 18px; font-weight: 600; color: var(--cream); line-height: 1; }
+  .stat-cell-unit  { font-size: 8px; color: var(--muted); margin-top: 2px; letter-spacing: 0.06em; }
+
+  /* ── Weather card ── */
+  .weather-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 13px 16px; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .weather-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
+  .weather-body { flex: 1; min-width: 0; }
+  .weather-location { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-bottom: 3px; }
+  .weather-temp { font-size: 22px; font-weight: 600; color: var(--cream); line-height: 1; }
+  .weather-desc { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .weather-right { text-align: right; flex-shrink: 0; }
+  .weather-wind { font-size: 10px; color: var(--muted); }
+  .weather-label { font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
+
+  /* ── Share ── */
+  .share-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .share-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+  .share-url-row { display: flex; gap: 8px; }
+  .share-url { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .copy-btn { background: var(--surface2); color: var(--cream); border: 1px solid var(--border); border-radius: 6px; padding: 9px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em; cursor: pointer; white-space: nowrap; }
+  .copy-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .share-note { font-size: 9px; color: var(--faint); margin-top: 8px; line-height: 1.6; letter-spacing: 0.04em; }
+
+  .status-msg { font-size: 10px; letter-spacing: 0.04em; border-radius: 6px; padding: 9px 12px; margin-bottom: 10px; display: none; }
+  .status-msg.ok  { color: var(--sage-light); background: rgba(122,158,126,0.12); border: 1px solid rgba(122,158,126,0.25); }
+  .status-msg.err { color: var(--rust-light); background: rgba(184,92,56,0.12); border: 1px solid rgba(184,92,56,0.25); }
+  .status-msg.show { display: block; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="site-header">
+  <div class="header-bg"></div>
+  <div class="van-name">✦ Dream Weaver ✦</div>
+  <h1 class="trip-title">Donahue Road Trip <em>'26</em></h1>
+  <div class="trip-sub">Ogden, UT &nbsp;→&nbsp; Rhode Island &nbsp;·&nbsp; Eastbound &nbsp;·&nbsp; Jun 19 – late June</div>
+  <div class="header-badges" id="headerBadges"></div>
+</header>
+
+<!-- STATS STRIP -->
+<div class="stats-strip">
+  <div class="stat-cell">
+    <div class="stat-cell-label">Day</div>
+    <div class="stat-cell-val" id="statDay">—</div>
+    <div class="stat-cell-unit">of trip</div>
+  </div>
+  <div class="stat-cell">
+    <div class="stat-cell-label">Miles</div>
+    <div class="stat-cell-val" id="statMiles">—</div>
+    <div class="stat-cell-unit">driven</div>
+  </div>
+  <div class="stat-cell">
+    <div class="stat-cell-label">States</div>
+    <div class="stat-cell-val" id="statStates">—</div>
+    <div class="stat-cell-unit">crossed</div>
+  </div>
+  <div class="stat-cell">
+    <div class="stat-cell-label">Fuel</div>
+    <div class="stat-cell-val" id="statFuel">—</div>
+    <div class="stat-cell-unit">spent</div>
+  </div>
+</div>
+
+<!-- WEATHER -->
+<div class="weather-card" id="weatherCard" style="display:none">
+  <div class="weather-icon" id="weatherIcon">🌤</div>
+  <div class="weather-body">
+    <div class="weather-location" id="weatherLocation">Next stop</div>
+    <div class="weather-temp" id="weatherTemp">—</div>
+    <div class="weather-desc" id="weatherDesc">Loading…</div>
+  </div>
+  <div class="weather-right">
+    <div class="weather-label">Wind</div>
+    <div class="weather-wind" id="weatherWind">—</div>
+  </div>
+</div>
+
+<!-- MAP -->
+<div class="map-wrap">
+  <div id="map"></div>
+  <div class="map-legend">
+    <div class="legend-item"><div class="legend-dot visited"></div> Visited</div>
+    <div class="legend-item"><div class="legend-dot current"></div> Dream Weaver</div>
+    <div class="legend-item"><div class="legend-dot upcoming"></div> Upcoming</div>
+  </div>
+</div>
+
+<!-- LOCATION CARD -->
+<div class="loc-card">
+  <div class="loc-eyebrow">
+    <span class="live-dot" id="liveDot"></span>
+    <span id="liveLabel">Last known location</span>
+  </div>
+  <div class="loc-name" id="locName">Ogden, Utah</div>
+  <div class="loc-time" id="locTime">Trip starts Jun 19</div>
+  <div class="eta-strip">
+    <div class="eta-item">
+      <div class="eta-label">Next stop</div>
+      <div class="eta-val" id="etaNext">Mesa Verde NP</div>
+    </div>
+    <div class="eta-item">
+      <div class="eta-label">Drive</div>
+      <div class="eta-val" id="etaDrive">~6.5 hrs</div>
+    </div>
+    <div class="eta-item">
+      <div class="eta-label">Night of</div>
+      <div class="eta-val" id="etaNight">Jun 19</div>
+    </div>
+  </div>
+</div>
+
+<!-- UPDATE BUTTON -->
+<div class="update-wrap" id="updateWrap">
+  <div class="status-msg" id="statusMsg"></div>
+  <button class="update-btn" id="updateBtn" onclick="shareLocation()">
+    <svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+    Update Dream Weaver's location
+  </button>
+  <p class="owner-note">Owner view — family sees location only</p>
+</div>
+
+<!-- PHOTOS -->
+<div class="section-head"><span>Photos from the road</span></div>
+<a href="https://www.icloud.com/sharedalbum/#B1iGY3uThGy4lZV" target="_blank" rel="noopener" class="photos-link-card">
+  <div class="photos-link-left">
+    <div class="photos-link-icon">📸</div>
+    <div>
+      <div class="photos-link-title">Dream Weaver Trip Album</div>
+      <div class="photos-link-sub">View all photos in Apple Photos</div>
+    </div>
+  </div>
+  <div class="photos-link-arrow">→</div>
+</a>
+
+<!-- ITINERARY -->
+<div class="section-head" id="itinHead">
+  <span>Itinerary</span>
+  <button class="add-stop-btn" id="addStopBtn" onclick="openModal(null)" style="display:none">+ Add stop</button>
+</div>
+<div class="itinerary-wrap" id="itinerary"></div>
+
+<!-- PARKS & STATES -->
+<div class="section-head"><span>🏕 Parks &amp; States</span></div>
+<div class="parks-section" id="parksSection">
+  <div class="tracker-card">
+    <div class="tracker-sub">National &amp; State Parks on route</div>
+    <div class="park-list" id="parkList">
+      <div style="font-size:10px;color:var(--faint);text-align:center;padding:10px 0;">Loading…</div>
+    </div>
+  </div>
+  <div class="tracker-card">
+    <div class="tracker-sub">States on route</div>
+    <div class="states-grid" id="statesGrid"></div>
+    <div class="states-note" id="statesNote">Starts with Ogden, UT — auto-updates as Dream Weaver travels</div>
+  </div>
+</div>
+
+<!-- FUEL SECTION -->
+<div class="section-head"><span>⛽ Fuel &amp; Range</span></div>
+<div class="fuel-section" id="fuelSection">
+
+  <div class="fuel-alert-strip" id="fuelAlertStrip"></div>
+
+  <div class="fuel-dash-card">
+    <div class="fuel-gauge-wrap">
+      <svg viewBox="0 0 160 110" width="180" height="124" overflow="visible">
+        <path id="fGaugeTrack" fill="none" stroke="#3A3730" stroke-width="9" stroke-linecap="round" d=""/>
+        <path id="fGaugeFill"  fill="none" stroke="#7A9E7E" stroke-width="9" stroke-linecap="round" d="" style="transition:stroke-dashoffset 0.6s ease,stroke 0.4s;"/>
+        <text x="12"  y="100" fill="#5A5750" font-family="monospace" font-size="7" text-anchor="middle">E</text>
+        <text x="148" y="100" fill="#5A5750" font-family="monospace" font-size="7" text-anchor="middle">F</text>
+        <text id="fGaugePct"    x="80" y="64" fill="#F0EDE6" font-family="monospace" font-size="20" font-weight="600" text-anchor="middle" dominant-baseline="middle">—</text>
+        <text id="fGaugeStatus" x="80" y="82" fill="#8A8780" font-family="monospace" font-size="7"  text-anchor="middle" dominant-baseline="middle" letter-spacing="1"></text>
+      </svg>
+    </div>
+
+    <div class="fuel-stats-row">
+      <div class="fuel-stat">
+        <div class="fuel-stat-label">Est. Range</div>
+        <div class="fuel-stat-val" id="fStatRange">—</div>
+      </div>
+      <div class="fuel-stat">
+        <div class="fuel-stat-label">Last Fill</div>
+        <div class="fuel-stat-val" id="fStatGal">—</div>
+      </div>
+      <div class="fuel-stat">
+        <div class="fuel-stat-label">Trip Cost</div>
+        <div class="fuel-stat-val" id="fStatCost">—</div>
+      </div>
+    </div>
+
+    <div class="section-head" style="font-size:8px;margin-bottom:8px;"><span>Recent fill-ups</span></div>
+    <div id="fuelLogList">
+      <div style="font-size:10px;color:var(--faint);text-align:center;padding:16px 0;">Loading fuel log…</div>
+    </div>
+
+    <div id="fMpgNote" style="display:none;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);text-align:center;padding:8px 0 2px;"></div>
+    <div id="fuelTrackerLink"></div>
+  </div>
+</div>
+
+<!-- SHARE -->
+<div class="share-section">
+  <div class="share-label">Share with family</div>
+  <div class="share-url-row">
+    <div class="share-url" id="shareUrl">your-site.netlify.app</div>
+    <button class="copy-btn" id="copyBtn" onclick="copyLink()">Copy link</button>
+  </div>
+  <div class="share-note">Anyone with this link can follow along — no login needed.</div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-bg" id="modalBg" onclick="handleModalBgClick(event)">
+  <div class="modal">
+    <h2 id="modalTitle">Edit stop</h2>
+    <div class="field">
+      <label>Place name</label>
+      <input type="text" id="fName" placeholder="e.g. Amarillo, TX">
+    </div>
+    <div class="field">
+      <label>Details / notes</label>
+      <input type="text" id="fDetail" placeholder="e.g. Overnight stop, Palo Duro Canyon">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Date label</label>
+        <input type="text" id="fDate" placeholder="e.g. Sat Jun 20">
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <select id="fBadge">
+          <option value="stay">Overnight</option>
+          <option value="drive">Driving day</option>
+          <option value="np">National Park</option>
+          <option value="bike">MTB / biking</option>
+          <option value="">No badge</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Drive time to next stop</label>
+        <input type="text" id="fDrive" placeholder="e.g. ~3 hrs">
+      </div>
+      <div class="field">
+        <label>Night label</label>
+        <input type="text" id="fNight" placeholder="e.g. Jun 20">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-delete" id="btnDelete" onclick="deleteStop()" style="display:none">Delete</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveStop()">Save stop</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const SUPABASE_URL = 'https://sizbwulpzanxvpvooxiz.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpemJ3dWxwemFueHZwdm9veGl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MzI5MzAsImV4cCI6MjA5NzMwODkzMH0.uw3mPjyLn4Rkc5JD6FnowexDLU3X-R2Rb_Dv-XQjpxY';
+const IS_CONFIGURED = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+
+// ── Dream Weaver van SVG icon ──────────────────────────────
+// Lifted Sprinter: high roof, roof rack, two-tone lower skirt, geometric accents
+const VAN_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 32" width="64" height="32">
+  <!-- Shadow -->
+  <ellipse cx="32" cy="30.5" rx="22" ry="1.5" fill="rgba(0,0,0,0.4)"/>
+  <!-- Lower skirt (dark two-tone) -->
+  <rect x="6" y="20" width="52" height="8" rx="1" fill="#1C1A17"/>
+  <!-- Geometric skirt graphics -->
+  <g stroke="#C9963A" stroke-width="0.6" fill="none" opacity="0.8">
+    <polyline points="10,20 13,28 16,20"/>
+    <polyline points="16,20 19,28 22,20"/>
+    <polyline points="23,20 26,28 29,20"/>
+    <polyline points="30,20 33,28 36,20"/>
+    <polyline points="37,20 40,28 43,20"/>
+    <polyline points="44,20 47,28 50,20"/>
+  </g>
+  <!-- Body (silver) -->
+  <rect x="4" y="10" width="54" height="12" rx="1" fill="#C8C8C4"/>
+  <!-- High roof cab section -->
+  <rect x="4" y="4" width="22" height="8" rx="2" fill="#BEBEBB"/>
+  <!-- High roof rear box -->
+  <rect x="24" y="6" width="28" height="6" rx="1" fill="#C8C8C4"/>
+  <!-- Cab window -->
+  <rect x="6" y="5.5" width="10" height="5" rx="1" fill="#2A3A4A" opacity="0.85"/>
+  <!-- Small side window (rear quarters) -->
+  <rect x="7" y="11" width="8" height="4" rx="0.5" fill="#2A3A4A" opacity="0.7"/>
+  <!-- Sliding door window -->
+  <rect x="27" y="11" width="12" height="5" rx="0.5" fill="#2A3A4A" opacity="0.7"/>
+  <!-- Rear windows -->
+  <rect x="45" y="11" width="8" height="5" rx="0.5" fill="#2A3A4A" opacity="0.7"/>
+  <!-- Door line -->
+  <line x1="26" y1="10" x2="26" y2="22" stroke="#A0A09C" stroke-width="0.5"/>
+  <line x1="42" y1="10" x2="42" y2="22" stroke="#A0A09C" stroke-width="0.5"/>
+  <!-- Roof rack -->
+  <rect x="5" y="2.5" width="52" height="2" rx="0.5" fill="#2A2A28"/>
+  <line x1="12" y1="2.5" x2="12" y2="4.5" stroke="#3A3A38" stroke-width="0.8"/>
+  <line x1="22" y1="2.5" x2="22" y2="4.5" stroke="#3A3A38" stroke-width="0.8"/>
+  <line x1="35" y1="2.5" x2="35" y2="4.5" stroke="#3A3A38" stroke-width="0.8"/>
+  <line x1="48" y1="2.5" x2="48" y2="4.5" stroke="#3A3A38" stroke-width="0.8"/>
+  <!-- DREAM WEAVER text -->
+  <text x="28" y="18.5" font-family="monospace" font-size="3.2" fill="#6A6A66" letter-spacing="0.8" text-anchor="middle">DREAM WEAVER</text>
+  <!-- Front grill / bumper -->
+  <rect x="4" y="21" width="4" height="5" rx="0.5" fill="#3A3730"/>
+  <!-- Rear bumper -->
+  <rect x="56" y="21" width="4" height="5" rx="0.5" fill="#3A3730"/>
+  <!-- Wheels -->
+  <circle cx="15" cy="28" r="3.5" fill="#2A2A28"/>
+  <circle cx="15" cy="28" r="1.8" fill="#3A3A38"/>
+  <circle cx="15" cy="28" r="0.6" fill="#C9963A"/>
+  <circle cx="49" cy="28" r="3.5" fill="#2A2A28"/>
+  <circle cx="49" cy="28" r="1.8" fill="#3A3A38"/>
+  <circle cx="49" cy="28" r="0.6" fill="#C9963A"/>
+  <!-- Running board -->
+  <rect x="8" y="26.5" width="38" height="1.5" rx="0.5" fill="#1A1A18"/>
+  <!-- Headlight -->
+  <rect x="4.5" y="12" width="3" height="2" rx="0.3" fill="#E8D090" opacity="0.9"/>
+  <!-- Taillight -->
+  <rect x="56.5" y="12" width="3" height="2" rx="0.3" fill="#C85030" opacity="0.8"/>
+</svg>`;
+
+// ── Stop data ──────────────────────────────────────────────
+let stops = [
+  { date: 'Fri Jun 19', name: 'Mesa Verde NP', detail: 'Morefield Campground', badge: 'np', lat: 37.1853, lng: -108.4864, drive: '~2.5 hrs to Santa Fe', night: 'Jun 19', state: 'CO' },
+  { date: 'Sat Jun 20', name: 'Santa Fe, NM', detail: 'Lunch stop · Route 66 country', badge: 'waypoint', lat: 35.6870, lng: -105.9378, drive: '~2.5 hrs', night: null, state: 'NM' },
+  { date: 'Sat Jun 20', name: 'Amarillo, TX', detail: 'Overnight stop · Route 66', badge: 'stay', lat: 35.2220, lng: -101.8313, drive: '~5.5 hrs', night: 'Jun 20', state: 'TX' },
+  { date: 'Sun Jun 21', name: 'Tulsa, OK', detail: "Fairfield Marriott \u00b7 Morgan's competition", badge: 'stay', lat: 36.1540, lng: -95.9928, drive: '~2 hrs', night: 'Jun 21', state: 'OK' },
+  { date: 'Mon Jun 22', name: 'Bentonville, AR', detail: 'Bentonville Bike Camp \u00b7 Ozark trails', badge: 'bike', lat: 36.3729, lng: -94.2088, drive: '~6 hrs', night: 'Jun 22', state: 'AR' },
+  { date: 'Tue Jun 23', name: 'Franklin, TN', detail: 'Overnight stop \u00b7 historic downtown', badge: 'stay', lat: 35.9251, lng: -86.8689, drive: '~7 hrs', night: 'Jun 23', state: 'TN' },
+  { date: 'Wed Jun 24', name: 'Shenandoah NP', detail: 'Loft Mountain Campground \u00b7 via Smokies', badge: 'np', lat: 38.2318, lng: -78.7747, drive: '~10 hrs', night: 'Jun 24', state: 'VA' },
+  { date: 'Jun 25+', name: 'Rhode Island', detail: 'Home \u00b7 Fenway finish', badge: null, lat: 41.5801, lng: -71.4774, drive: null, night: null, state: 'RI' },
+];
+
+const ogden = { lat: 41.2230, lng: -111.9738 };
+let currentLat = null, currentLng = null;
+
+// ── Map ────────────────────────────────────────────────────
+// Fix Leaflet default icon broken image error (occurs even when using divIcon)
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+const map = L.map('map', { zoomControl: true, scrollWheelZoom: false });
+
+// Dark style tiles
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '\u00a9 OpenStreetMap \u00a9 CARTO', maxZoom: 19
+}).addTo(map);
+
+let routeLine = null, completedLine = null, vanMarker = null;
+let stopMarkers = [];
+
+// Van icon for map
+const vanIcon = L.divIcon({
+  className: '',
+  html: `<div style="filter:drop-shadow(0 2px 6px rgba(201,150,58,0.7));">${VAN_SVG}</div>`,
+  iconSize: [64, 32],
+  iconAnchor: [32, 28],
+  popupAnchor: [0, -30]
+});
+
+function buildMap() {
+  stopMarkers.forEach(m => map.removeLayer(m));
+  stopMarkers = [];
+  if (routeLine) map.removeLayer(routeLine);
+  if (completedLine) map.removeLayer(completedLine);
+
+  const allPoints = [[ogden.lat, ogden.lng], ...stops.filter(s => s.lat).map(s => [s.lat, s.lng])];
+
+  // Dashed planned route
+  routeLine = L.polyline(allPoints, {
+    color: '#5A5750', weight: 2, dashArray: '6,7', opacity: 0.8
+  }).addTo(map);
+
+  // Ogden start dot
+  L.marker([ogden.lat, ogden.lng], { icon: L.divIcon({
+    className: '',
+    html: '<div style="width:10px;height:10px;border-radius:50%;background:#3A3730;border:2px solid #5A5750;"></div>',
+    iconSize:[10,10], iconAnchor:[5,5]
+  })}).bindTooltip('<b>Ogden, UT</b><br>Start', { direction:'top' }).addTo(map);
+
+  // Stop markers
+  stops.filter(s => s.lat).forEach((s) => {
+    const color = s.badge === 'np' ? '#7A9E7E' : s.badge === 'bike' ? '#B85C38' : '#8A8780';
+    const m = L.marker([s.lat, s.lng], { icon: L.divIcon({
+      className: '',
+      html: `<div style="width:9px;height:9px;border-radius:50%;background:transparent;border:2px solid ${color};"></div>`,
+      iconSize:[9,9], iconAnchor:[4.5,4.5]
+    })}).bindTooltip(`<b>${s.name}</b><br><span style="font-size:10px;color:#8A8780">${s.date}</span>`, { direction:'top' }).addTo(map);
+    stopMarkers.push({ marker: m, stop: s, color });
+  });
+
+  map.fitBounds(L.latLngBounds(allPoints).pad(0.1));
+  if (currentLat !== null) updateMapPosition(currentLat, currentLng);
+}
+
+function updateMapPosition(lat, lng) {
+  currentLat = lat; currentLng = lng;
+
+  // Van marker
+  if (vanMarker) map.removeLayer(vanMarker);
+  vanMarker = L.marker([lat, lng], { icon: vanIcon, zIndexOffset: 1000 })
+    .bindTooltip('<b>Dream Weaver</b><br>We are here!', { direction: 'top' })
+    .addTo(map);
+
+  // Completed route in gold
+  if (completedLine) map.removeLayer(completedLine);
+  completedLine = L.polyline([[ogden.lat, ogden.lng], [lat, lng]], {
+    color: '#C9963A', weight: 3, opacity: 0.9
+  }).addTo(map);
+
+  // Update stop markers: visited = filled, upcoming = open ring
+  const stopsWithCoords = stops.filter(s => s.lat);
+  stopsWithCoords.forEach((s, i) => {
+    const globalIdx = stops.indexOf(s);
+    const dist = haversine(lat, lng, s.lat, s.lng);
+    const passed = isSequentiallyPassed(lat, lng, globalIdx) || dist < 80;
+    const { color } = stopMarkers[i] || {};
+    const html = passed
+      ? `<div style="width:9px;height:9px;border-radius:50%;background:${color || '#5A5750'};border:2px solid ${color || '#5A5750'};opacity:0.5;"></div>`
+      : `<div style="width:9px;height:9px;border-radius:50%;background:transparent;border:2px solid ${color || '#8A8780'};"></div>`;
+    if (stopMarkers[i]) stopMarkers[i].marker.setIcon(L.divIcon({ className:'', html, iconSize:[9,9], iconAnchor:[4.5,4.5] }));
+  });
+
+  updateETA(lat, lng);
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function isSequentiallyPassed(curLat, curLng, stopIdx) {
+  if (stopIdx >= stops.length-1) return false;
+  const s = stops[stopIdx];
+  if (!s.lat) return false;
+  const d0 = haversine(curLat, curLng, s.lat, s.lng);
+  for (let j = stopIdx+1; j < stops.length; j++) {
+    if (!stops[j].lat) continue;
+    if (haversine(curLat, curLng, stops[j].lat, stops[j].lng) < d0) return true;
+  }
+  return false;
+}
+
+function updateETA(lat, lng) {
+  for (let i = 0; i < stops.length; i++) {
+    const s = stops[i];
+    if (!s.lat) continue;
+    const passed = isSequentiallyPassed(lat, lng, i) || haversine(lat, lng, s.lat, s.lng) < 80;
+    if (!passed) {
+      document.getElementById('etaNext').textContent = s.name;
+      document.getElementById('etaDrive').textContent = (i>0 ? stops[i-1].drive : null) || s.drive || '—';
+      document.getElementById('etaNight').textContent = s.night || '—';
+      return;
+    }
+  }
+  document.getElementById('etaNext').textContent = 'Home!';
+  document.getElementById('etaDrive').textContent = '—';
+  document.getElementById('etaNight').textContent = '—';
+}
+
+buildMap();
+
+// ── Itinerary render ───────────────────────────────────────
+const BADGE_LABELS = { stay:'overnight', drive:'driving', np:'nat\'l park', sp:'state park', bike:'mtb', r66:'route 66', waypoint:'waypoint', poi:'poi' };
+const BADGE_CLS    = { stay:'stag-stay', drive:'stag-drive', np:'stag-np', sp:'stag-sp', bike:'stag-bike', r66:'stag-r66', waypoint:'stag-waypoint', poi:'stag-poi' };
+
+function renderItinerary() {
+  const el = document.getElementById('itinerary');
+  el.innerHTML = stops.map((s, i) => {
+    const visited = currentLat !== null && s.lat && (haversine(currentLat, currentLng, s.lat, s.lng) < 80 || isSequentiallyPassed(currentLat, currentLng, i));
+    const isNext  = !visited && currentLat !== null && i === stops.findIndex((st, idx) => st.lat && !(haversine(currentLat, currentLng, st.lat, st.lng) < 80 || isSequentiallyPassed(currentLat, currentLng, idx)));
+    const circleClass = visited ? 'done' : isNext ? 'active' : '';
+    const badge = s.badge && BADGE_LABELS[s.badge]
+      ? `<span class="stag ${BADGE_CLS[s.badge] || 'stag-stay'}">${BADGE_LABELS[s.badge]}</span>` : '';
+    const editBtn = isOwner ? `<div class="stop-actions"><button class="stop-edit-btn" onclick="openModal(${i})" title="Edit">\u270e</button></div>` : '';
+    return `<div class="stop ${!s.lat ? 'stop-tbd' : ''}">
+      <div class="stop-left"><div class="stop-circle ${circleClass}"></div></div>
+      <div class="stop-info">
+        <div class="stop-date">${s.date || 'TBD'}</div>
+        <div class="stop-name ${visited ? 'done' : ''}">${s.name}</div>
+        <div class="stop-detail">${s.detail || ''}</div>
+        <div class="stop-tags">${badge}</div>
+      </div>
+      ${editBtn}
+    </div>`;
+  }).join('');
+}
+
+// ── Stop editor ────────────────────────────────────────────
+let editingIdx = null;
+
+function openModal(idx) {
+  editingIdx = idx;
+  const s = idx !== null ? stops[idx] : {};
+  document.getElementById('modalTitle').textContent = idx !== null ? 'Edit stop' : 'Add stop';
+  document.getElementById('fName').value = s.name || '';
+  document.getElementById('fDetail').value = s.detail || '';
+  document.getElementById('fDate').value = s.date || '';
+  document.getElementById('fBadge').value = s.badge || '';
+  document.getElementById('fDrive').value = s.drive || '';
+  document.getElementById('fNight').value = s.night || '';
+  document.getElementById('btnDelete').style.display = idx !== null ? 'block' : 'none';
+  document.getElementById('modalBg').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modalBg').classList.remove('open'); editingIdx = null; }
+function handleModalBgClick(e) { if (e.target === document.getElementById('modalBg')) closeModal(); }
+
+function saveStop() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { alert('Place name is required.'); return; }
+  const s = {
+    name,
+    detail: document.getElementById('fDetail').value.trim(),
+    date: document.getElementById('fDate').value.trim(),
+    badge: document.getElementById('fBadge').value || null,
+    drive: document.getElementById('fDrive').value.trim() || null,
+    night: document.getElementById('fNight').value.trim() || null,
+    lat: editingIdx !== null ? stops[editingIdx].lat : null,
+    lng: editingIdx !== null ? stops[editingIdx].lng : null,
+  };
+  if (editingIdx !== null) stops[editingIdx] = s;
+  else stops.splice(stops.length-1, 0, s);
+  closeModal();
+  persistStops();
+  buildMap();
+  renderItinerary();
+}
+
+function deleteStop() {
+  if (editingIdx === null) return;
+  if (!confirm(`Remove "${stops[editingIdx].name}"?`)) return;
+  stops.splice(editingIdx, 1);
+  closeModal();
+  persistStops();
+  buildMap();
+  renderItinerary();
+}
+
+async function persistStops() {
+  if (!IS_CONFIGURED) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/itinerary`, {
+      method: 'POST',
+      headers: { 'Authorization':`Bearer ${SUPABASE_KEY}`, 'apikey':SUPABASE_KEY, 'Content-Type':'application/json', 'Prefer':'resolution=merge-duplicates' },
+      body: JSON.stringify({ id:1, data:JSON.stringify(stops), updated_at:new Date().toISOString() })
+    });
+  } catch(e) {}
+}
+
+async function loadStops() {
+  if (!IS_CONFIGURED) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/itinerary?id=eq.1&limit=1`, {
+      headers: { 'Authorization':`Bearer ${SUPABASE_KEY}`, 'apikey':SUPABASE_KEY }
+    });
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0 && data[0].data) {
+      const parsed = JSON.parse(data[0].data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        stops = parsed;
+        buildMap();
+        renderItinerary();
+      }
+    }
+  } catch(e) {}
+}
+
+// ── Location ───────────────────────────────────────────────
+async function shareLocation() {
+  const btn = document.getElementById('updateBtn');
+  if (!navigator.geolocation) { showMsg('Geolocation not supported.', true); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-9-9"/></svg>&nbsp; Locating Dream Weaver...';
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude:lat, longitude:lng } = pos.coords;
+    let city = `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+    try {
+      const geo = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+      const gd = await geo.json();
+      const c = gd.address.city || gd.address.town || gd.address.village || gd.address.county || '';
+      const st = gd.address.state || '';
+      if (c) city = st ? `${c}, ${st}` : c;
+      // Store current state code for tracker
+      const stateAbbr = STATE_NAME_TO_CODE[st] || gd.address['ISO3166-2-lvl4']?.split('-')[1] || null;
+      if (stateAbbr) currentStateCode = stateAbbr;
+    } catch(e) {}
+
+    const now = new Date();
+    const ts = now.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    document.getElementById('locName').textContent = city;
+    document.getElementById('locTime').textContent = `Updated ${ts}`;
+    document.getElementById('liveDot').classList.add('live');
+    document.getElementById('liveLabel').textContent = 'Dream Weaver is live';
+    updateMapPosition(lat, lng);
+    renderItinerary();
+    renderParksAndStates();
+    renderTripStats();
+    loadWeather();
+
+    if (IS_CONFIGURED) {
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/location`, {
+          method:'POST',
+          headers:{ 'Authorization':`Bearer ${SUPABASE_KEY}`, 'apikey':SUPABASE_KEY, 'Content-Type':'application/json', 'Prefer':'resolution=merge-duplicates' },
+          body: JSON.stringify({ id:1, city, latitude:lat, longitude:lng, updated_at:now.toISOString() })
+        });
+        showMsg('Dream Weaver\u2019s location updated \u2014 family is watching!', false);
+      } catch(e) { showMsg('Saved locally \u2014 check Supabase config.', true); }
+    } else {
+      showMsg('Location captured! Add your Supabase keys to go live.', false);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>&nbsp; Update Dream Weaver\u2019s location';
+  }, () => {
+    showMsg('Could not get location \u2014 allow location access and try again.', true);
+    btn.disabled = false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>&nbsp; Update Dream Weaver\u2019s location';
+  });
+}
+
+async function loadLocation() {
+  if (!IS_CONFIGURED) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/location?id=eq.1&limit=1`, {
+      headers: { 'Authorization':`Bearer ${SUPABASE_KEY}`, 'apikey':SUPABASE_KEY }
+    });
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0 && data[0].latitude) {
+      const d = data[0];
+      document.getElementById('locName').textContent = d.city;
+      const t = new Date(d.updated_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      document.getElementById('locTime').textContent = `Updated ${t}`;
+      document.getElementById('liveDot').classList.add('live');
+      document.getElementById('liveLabel').textContent = 'Dream Weaver is live';
+      updateMapPosition(d.latitude, d.longitude);
+      renderItinerary();
+      renderParksAndStates();
+      renderTripStats();
+      loadWeather();
+    }
+  } catch(e) {}
+}
+
+// ── Photos ─────────────────────────────────────────────────
+function handlePhotos(input) {
+  const loc = document.getElementById('locName').textContent;
+  Array.from(input.files).forEach(file => {
+    const url = URL.createObjectURL(file);
+    const slot = document.createElement('div');
+    slot.className = 'photo-slot';
+    slot.innerHTML = `<img src="${url}" alt="Trip photo"><div class="photo-caption">${loc}</div>`;
+    document.getElementById('photoGrid').insertBefore(slot, document.getElementById('addPhotoSlot'));
+    if (IS_CONFIGURED) uploadPhoto(file, loc);
+  });
+}
+
+async function uploadPhoto(file, location) {
+  const filename = `${Date.now()}-${file.name}`;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/trip-photos/${filename}`, {
+      method:'POST', headers:{ 'Authorization':`Bearer ${SUPABASE_KEY}`, 'x-upsert':'true' }, body:file
+    });
+    if (r.ok) {
+      const url = `${SUPABASE_URL}/storage/v1/object/public/trip-photos/${filename}`;
+      await fetch(`${SUPABASE_URL}/rest/v1/photos`, {
+        method:'POST',
+        headers:{ 'Authorization':`Bearer ${SUPABASE_KEY}`, 'apikey':SUPABASE_KEY, 'Content-Type':'application/json' },
+        body: JSON.stringify({ url, location, taken_at:new Date().toISOString() })
+      });
+    }
+  } catch(e) {}
+}
+
+async function loadPhotos() {
+  if (!IS_CONFIGURED) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/photos?order=taken_at.desc&limit=9`, {
+      headers:{ 'Authorization':`Bearer ${SUPABASE_KEY}`, 'apikey':SUPABASE_KEY }
+    });
+    const data = await res.json();
+    if (!Array.isArray(data) || !data.length) return;
+    const grid = document.getElementById('photoGrid');
+    const add = document.getElementById('addPhotoSlot');
+    data.forEach(p => {
+      const slot = document.createElement('div');
+      slot.className = 'photo-slot';
+      slot.innerHTML = `<img src="${p.url}" alt="Trip photo"><div class="photo-caption">${p.location||''}</div>`;
+      grid.insertBefore(slot, add);
+    });
+  } catch(e) {}
+}
+
+// ── Utilities ──────────────────────────────────────────────
+function showMsg(text, isError) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = text;
+  el.className = `status-msg show ${isError ? 'err' : 'ok'}`;
+  setTimeout(() => el.className = 'status-msg', 4000);
+}
+
+function copyLink() {
+  const url = window.location.href.replace('?owner=true','');
+  navigator.clipboard.writeText(url).then(() => {
+    const b = document.getElementById('copyBtn');
+    b.textContent = 'Copied!';
+    setTimeout(() => b.textContent = 'Copy link', 2000);
+  });
+}
+
+// ── Fuel Dashboard ─────────────────────────────────────────
+const FUEL_MPG_DEFAULT = 12;
+
+function calcActualMpg(logs) {
+  // logs must be sorted newest-first with odometer readings
+  // MPG pair = (newer_odo - older_odo) / older_gallons
+  const pairs = [];
+  for (let i = 0; i < logs.length - 1; i++) {
+    const miles = parseInt(logs[i].odometer) - parseInt(logs[i+1].odometer);
+    const gal   = parseFloat(logs[i+1].gallons); // gallons pumped at the older stop = fuel used to travel those miles
+    if (miles > 0 && miles < 3000 && gal > 0) pairs.push(miles / gal);
+  }
+  if (!pairs.length) return null;
+  return pairs.reduce((a,b) => a+b) / pairs.length;
+}
+
+function getEffectiveMpg(logs) {
+  const actual = calcActualMpg(logs);
+  if (actual === null) return { mpg: FUEL_MPG_DEFAULT, source: 'estimated' };
+  // Switch to actual if it differs from default by more than 15% and we have 2+ fill-up pairs
+  const pctDiff = Math.abs(actual - FUEL_MPG_DEFAULT) / FUEL_MPG_DEFAULT;
+  if (pctDiff > 0.15 && logs.length >= 2) {
+    return { mpg: parseFloat(actual.toFixed(1)), source: 'actual' };
+  }
+  return { mpg: FUEL_MPG_DEFAULT, source: 'estimated' };
+}
+
+function fuelArcPath(cx, cy, r, startDeg, endDeg) {
+  const toRad = d => (d - 90) * Math.PI / 180;
+  const sx = cx + r * Math.cos(toRad(startDeg)), sy = cy + r * Math.sin(toRad(startDeg));
+  const ex = cx + r * Math.cos(toRad(endDeg)),   ey = cy + r * Math.sin(toRad(endDeg));
+  const large = (endDeg - startDeg) > 180 ? 1 : 0;
+  return `M ${sx} ${sy} A ${r} ${r} 0 ${large} 1 ${ex} ${ey}`;
+}
+
+function drawFuelGauge(pct) {
+  const cx = 80, cy = 72, r = 52, startDeg = 210, totalDeg = 240;
+  const track = fuelArcPath(cx, cy, r, startDeg, startDeg + totalDeg);
+  document.getElementById('fGaugeTrack').setAttribute('d', track);
+
+  const pctEl = document.getElementById('fGaugePct');
+  const stEl  = document.getElementById('fGaugeStatus');
+
+  if (pct === null) {
+    document.getElementById('fGaugeFill').setAttribute('d', '');
+    pctEl.textContent = '—'; stEl.textContent = '';
+    return;
+  }
+
+  const fillEnd = startDeg + (totalDeg * pct / 100);
+  const fill = pct > 0 ? fuelArcPath(cx, cy, r, startDeg, Math.min(fillEnd, startDeg + totalDeg)) : '';
+  document.getElementById('fGaugeFill').setAttribute('d', fill);
+
+  let color = '#7A9E7E', status = 'OK';
+  if (pct < 22) { color = '#B85C38'; status = 'FILL UP'; }
+  else if (pct < 50) { color = '#C9963A'; status = 'LOW'; }
+
+  document.getElementById('fGaugeFill').style.stroke = color;
+  pctEl.textContent = pct + '%';
+  stEl.textContent = status;
+  stEl.style.fill = color;
+}
+
+function fmtFuelDate(ds) {
+  if (!ds) return '';
+  const [y,m,d] = ds.split('-').map(Number);
+  const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${mo[m-1]} ${d}`;
+}
+
+async function loadFuelLog() {
+  if (!IS_CONFIGURED) {
+    document.getElementById('fuelLogList').innerHTML = '<div style="font-size:10px;color:var(--faint);text-align:center;padding:16px 0;">Add Supabase keys to see fuel data</div>';
+    drawFuelGauge(null);
+    return;
+  }
+  try {
+    // Fetch enough entries for MPG calculation + display
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/fuel_log?order=fill_date.desc,logged_at.desc&limit=20`, {
+      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+    });
+    const logs = await res.json();
+    if (!Array.isArray(logs) || !logs.length) {
+      document.getElementById('fuelLogList').innerHTML = '<div style="font-size:10px;color:var(--faint);text-align:center;padding:16px 0;">No fill-ups logged yet</div>';
+      drawFuelGauge(null);
+      return;
+    }
+
+    const totalCost = logs.reduce((s,f) => s + parseFloat(f.total_cost||0), 0);
+    tripFuelCost = totalCost;
+    // Miles from odometer: newest minus oldest entry
+    const odomReadings = logs.map(f => parseInt(f.odometer)).filter(n => n > 0);
+    if (odomReadings.length >= 2) {
+      tripMiles = Math.max(...odomReadings) - Math.min(...odomReadings);
+    }
+    renderTripStats();
+    const { mpg: effectiveMpg, source: mpgSource } = getEffectiveMpg(logs);
+
+    const last = logs[0];
+    const tank = 45;
+    const galRemaining = Math.min(parseFloat(last.gallons), tank);
+    const pct = Math.round((galRemaining / tank) * 100);
+    const estRange = Math.round(galRemaining * effectiveMpg);
+
+    drawFuelGauge(pct);
+
+    document.getElementById('fStatRange').textContent = estRange + ' mi';
+    document.getElementById('fStatGal').textContent   = parseFloat(last.gallons).toFixed(1) + ' gal';
+    document.getElementById('fStatCost').textContent  = totalCost > 0 ? '$' + totalCost.toFixed(0) : '—';
+
+    // Show MPG note if actual data is being used
+    const mpgNoteEl = document.getElementById('fMpgNote');
+    if (mpgNoteEl) {
+      const actualMpg = calcActualMpg(logs);
+      if (actualMpg !== null) {
+        const badge = mpgSource === 'actual' ? `${effectiveMpg} mpg (actual)` : `${effectiveMpg} mpg est · actual ${actualMpg.toFixed(1)}`;
+        mpgNoteEl.textContent = badge;
+        mpgNoteEl.style.display = 'block';
+      }
+    }
+
+    // Alert
+    const alertEl = document.getElementById('fuelAlertStrip');
+    if (pct < 22) {
+      alertEl.className = 'fuel-alert-strip fill show';
+      alertEl.textContent = '⛽ Dream Weaver needs fuel — est. ' + estRange + ' miles remaining';
+    } else if (pct < 50) {
+      alertEl.className = 'fuel-alert-strip low show';
+      alertEl.textContent = '⚠ Fuel getting low — est. ' + estRange + ' miles remaining';
+    }
+
+    // Log items (show only last 5 in the trip site widget)
+    document.getElementById('fuelLogList').innerHTML = logs.slice(0,5).map((f, i) => {
+      const next = logs[i+1]; // older entry
+      let mpgStr = '';
+      if (next) {
+        // MPG = miles driven / gallons used (gallons filled at the older stop = fuel consumed)
+        const miles = parseInt(f.odometer) - parseInt(next.odometer);
+        const mpg = miles > 0 && miles < 3000 ? (miles / parseFloat(next.gallons)).toFixed(1) : null;
+        if (mpg) mpgStr = ` · ${mpg} mpg`;
+      }
+      return `<div class="fuel-log-item">
+        <div class="fuel-log-left">
+          <div class="fuel-log-date">${fmtFuelDate(f.fill_date)}</div>
+          <div class="fuel-log-loc">${f.location_name || 'Unknown'}</div>
+          <div class="fuel-log-det">${f.gallons} gal · $${parseFloat(f.price_per_gallon).toFixed(3)}/gal${mpgStr}</div>
+        </div>
+        <div class="fuel-log-right">
+          <div class="fuel-log-cost">$${parseFloat(f.total_cost||0).toFixed(2)}</div>
+          <div class="fuel-log-sub">${parseInt(f.odometer).toLocaleString()} mi</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('fuelLogList').innerHTML = '<div style="font-size:10px;color:var(--faint);text-align:center;padding:16px 0;">Could not load fuel log</div>';
+    drawFuelGauge(null);
+  }
+}
+
+// ── Parks & States Tracker ────────────────────────────────
+const STATE_NAME_TO_CODE = {
+  'Utah':'UT','Colorado':'CO','New Mexico':'NM','Texas':'TX','Oklahoma':'OK',
+  'Arkansas':'AR','Tennessee':'TN','Virginia':'VA','Rhode Island':'RI',
+  'California':'CA','Nevada':'NV','Arizona':'AZ','Wyoming':'WY','Montana':'MT',
+  'Idaho':'ID','Oregon':'OR','Washington':'WA','Kansas':'KS','Missouri':'MO',
+  'Iowa':'IA','Illinois':'IL','Indiana':'IN','Ohio':'OH','Kentucky':'KY',
+  'North Carolina':'NC','South Carolina':'SC','Georgia':'GA','Florida':'FL',
+  'Alabama':'AL','Mississippi':'MS','Louisiana':'LA','Pennsylvania':'PA',
+  'New York':'NY','Connecticut':'CT','Massachusetts':'MA','Vermont':'VT',
+  'New Hampshire':'NH','Maine':'ME','New Jersey':'NJ','Delaware':'DE',
+  'Maryland':'MD','West Virginia':'WV','Michigan':'MI','Wisconsin':'WI',
+  'Minnesota':'MN','North Dakota':'ND','South Dakota':'SD','Nebraska':'NE'
+};
+
+// Route states in order (UT is start, not a stop object)
+const ROUTE_STATES_ORDERED = ['UT','CO','NM','TX','OK','AR','TN','VA','MD','PA','NJ','NY','CT','RI'];
+
+let currentStateCode = null;
+
+function getVisitedStateSet() {
+  if (currentLat === null) return new Set();
+  const visited = new Set();
+  // UT is always visited (starting point)
+  visited.add('UT');
+  stops.forEach((s, i) => {
+    if (!s.state || !s.lat) return;
+    const passed = isSequentiallyPassed(currentLat, currentLng, i) || haversine(currentLat, currentLng, s.lat, s.lng) < 80;
+    if (passed) visited.add(s.state);
+  });
+  if (currentStateCode) visited.add(currentStateCode);
+  return visited;
+}
+
+function renderParksAndStates() {
+  const visited = getVisitedStateSet();
+  const hasLocation = currentLat !== null;
+
+  // Parks list
+  const parks = stops.filter(s => s.badge === 'np' || s.badge === 'sp');
+  const parkListEl = document.getElementById('parkList');
+  if (parkListEl) {
+    if (!parks.length) {
+      parkListEl.innerHTML = '<div style="font-size:10px;color:var(--faint);text-align:center;padding:10px 0;">No parks on route</div>';
+    } else {
+      parkListEl.innerHTML = parks.map((s, idx) => {
+        const globalIdx = stops.indexOf(s);
+        const isVisited = hasLocation && (isSequentiallyPassed(currentLat, currentLng, globalIdx) || haversine(currentLat, currentLng, s.lat, s.lng) < 80);
+        const icon = s.badge === 'sp' ? '🌲' : '⛰';
+        const type = s.badge === 'sp' ? 'State Park' : "Nat'l Park";
+        const statusClass = isVisited ? 'visited' : 'upcoming';
+        const statusLabel = isVisited ? '✓ Visited' : 'Upcoming';
+        return `<div class="park-item">
+          <div class="park-icon">${icon}</div>
+          <div class="park-info">
+            <div class="park-name">${s.name}</div>
+            <div class="park-state-badge">${type}${s.state ? ' · ' + s.state : ''}</div>
+          </div>
+          <div class="park-status ${statusClass}">${statusLabel}</div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // States grid
+  const statesGridEl = document.getElementById('statesGrid');
+  if (statesGridEl) {
+    // All route states plus any from stops that aren't in route order
+    const allStopStates = stops.filter(s => s.state).map(s => s.state);
+    const allStates = ['UT', ...new Set([...ROUTE_STATES_ORDERED.filter(st => allStopStates.includes(st) || st === 'UT'), ...allStopStates])];
+    const uniqueOrdered = [...new Set(['UT', ...allStopStates])];
+
+    statesGridEl.innerHTML = uniqueOrdered.map(code => {
+      let cls = 'upcoming';
+      if (currentStateCode === code) cls = 'current';
+      else if (visited.has(code)) cls = 'visited';
+      return `<div class="state-chip ${cls}" title="${cls === 'current' ? 'Current state' : cls}">${code}</div>`;
+    }).join('');
+
+    const noteEl = document.getElementById('statesNote');
+    if (noteEl) {
+      const visitedCount = uniqueOrdered.filter(c => visited.has(c)).length;
+      const total = uniqueOrdered.length;
+      if (hasLocation) {
+        noteEl.textContent = `${visitedCount} of ${total} states visited · auto-updates with location`;
+      } else {
+        noteEl.textContent = `${total} states on route · share location to track progress`;
+      }
+    }
+  }
+}
+
+// ── Header badges (auto-generated from stops) ─────────────
+const HEADER_BADGE_CONFIG = {
+  np:       { cls: 'np',   label: '⛰ National Parks' },
+  sp:       { cls: 'np',   label: '🌲 State Parks' },
+  bike:     { cls: 'bike', label: '🚵 MTB / Biking' },
+  r66:      { cls: 'r66',  label: '⚡ Route 66' },
+  stay:     { cls: 'r66',  label: '🌙 Overnight Stops' },
+  waypoint: { cls: 'r66',  label: '📍 Waypoints' },
+  poi:      { cls: 'bike', label: '📸 Points of Interest' },
+};
+
+function renderHeaderBadges() {
+  const seen = new Set();
+  const badges = [];
+  stops.forEach(s => {
+    if (s.badge && HEADER_BADGE_CONFIG[s.badge] && !seen.has(s.badge)) {
+      // Only show "interesting" badges — skip generic stay/waypoint unless that's all there is
+      if (['np','sp','bike','r66','poi'].includes(s.badge)) {
+        seen.add(s.badge);
+        badges.push(HEADER_BADGE_CONFIG[s.badge]);
+      }
+    }
+  });
+  const el = document.getElementById('headerBadges');
+  if (el) el.innerHTML = badges.map(b => `<span class="hbadge ${b.cls}">${b.label}</span>`).join('');
+}
+
+// ── Trip Stats ─────────────────────────────────────────────
+const TRIP_START = new Date('2026-06-19');
+let tripFuelCost = null;   // populated by loadFuelLog
+let tripMiles    = null;   // populated by loadFuelLog (odometer) or fallback
+
+function renderTripStats() {
+  // Days on road
+  const today = new Date();
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const dayNum = Math.max(1, Math.floor((today - TRIP_START) / msPerDay) + 1);
+  const el = id => document.getElementById(id);
+  el('statDay').textContent = today >= TRIP_START ? dayNum : '—';
+
+  // Miles — from odometer if available, else haversine of visited stops
+  if (tripMiles !== null) {
+    el('statMiles').textContent = tripMiles >= 1000
+      ? (tripMiles / 1000).toFixed(1) + 'k'
+      : tripMiles;
+  } else if (currentLat !== null) {
+    // Haversine fallback: sum distances of passed stops from ogden
+    let pts = [[ogden.lat, ogden.lng]];
+    stops.forEach((s, i) => {
+      if (s.lat && (isSequentiallyPassed(currentLat, currentLng, i) || haversine(currentLat, currentLng, s.lat, s.lng) < 80))
+        pts.push([s.lat, s.lng]);
+    });
+    pts.push([currentLat, currentLng]);
+    let dist = 0;
+    for (let i = 0; i < pts.length - 1; i++)
+      dist += haversine(pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]) * 0.621371;
+    el('statMiles').textContent = Math.round(dist) >= 1000
+      ? (Math.round(dist) / 1000).toFixed(1) + 'k'
+      : Math.round(dist);
+  }
+
+  // States
+  const visited = getVisitedStateSet();
+  el('statStates').textContent = visited.size || '—';
+
+  // Fuel cost
+  if (tripFuelCost !== null && tripFuelCost > 0) {
+    el('statFuel').textContent = '$' + (tripFuelCost >= 1000
+      ? (tripFuelCost / 1000).toFixed(1) + 'k'
+      : Math.round(tripFuelCost));
+  }
+}
+
+// ── Weather at next stop ────────────────────────────────────
+const WMO_ICONS = {
+  0:'☀️', 1:'🌤', 2:'⛅', 3:'🌥',
+  45:'🌫', 48:'🌫',
+  51:'🌦', 53:'🌦', 55:'🌧',
+  61:'🌧', 63:'🌧', 65:'🌧',
+  71:'🌨', 73:'🌨', 75:'❄️',
+  77:'🌨', 80:'🌦', 81:'🌧', 82:'⛈',
+  85:'🌨', 86:'❄️',
+  95:'⛈', 96:'⛈', 99:'⛈'
+};
+const WMO_DESC = {
+  0:'Clear sky', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+  45:'Foggy', 48:'Icy fog',
+  51:'Light drizzle', 53:'Drizzle', 55:'Heavy drizzle',
+  61:'Light rain', 63:'Rain', 65:'Heavy rain',
+  71:'Light snow', 73:'Snow', 75:'Heavy snow',
+  77:'Snow grains', 80:'Rain showers', 81:'Heavy showers', 82:'Violent showers',
+  85:'Snow showers', 86:'Heavy snow showers',
+  95:'Thunderstorm', 96:'Thunderstorm + hail', 99:'Thunderstorm + heavy hail'
+};
+
+async function loadWeather() {
+  // Find next unvisited stop with coordinates
+  let nextStop = null;
+  for (let i = 0; i < stops.length; i++) {
+    const s = stops[i];
+    if (!s.lat) continue;
+    const passed = currentLat !== null &&
+      (isSequentiallyPassed(currentLat, currentLng, i) || haversine(currentLat, currentLng, s.lat, s.lng) < 80);
+    if (!passed) { nextStop = s; break; }
+  }
+  if (!nextStop) return;
+
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${nextStop.lat}&longitude=${nextStop.lng}&current=temperature_2m,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&forecast_days=1&timezone=auto`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const cur = data.current;
+    const code = cur.weather_code;
+    const temp = Math.round(cur.temperature_2m);
+    const wind = Math.round(cur.wind_speed_10m);
+
+    document.getElementById('weatherIcon').textContent = WMO_ICONS[code] || '🌤';
+    document.getElementById('weatherTemp').textContent = temp + '°F';
+    document.getElementById('weatherDesc').textContent = WMO_DESC[code] || 'Unknown';
+    document.getElementById('weatherWind').textContent = wind + ' mph';
+    document.getElementById('weatherLocation').textContent = 'Next stop · ' + nextStop.name;
+    document.getElementById('weatherCard').style.display = 'flex';
+  } catch(e) {
+    // Silent fail — weather is a nice-to-have
+  }
+}
+
+// ── Init ───────────────────────────────────────────────────
+const isOwner = window.location.search.includes('owner=true');
+if (!isOwner) document.getElementById('updateWrap').style.display = 'none';
+else document.getElementById('addStopBtn').style.display = 'block';
+
+// Fuel tracker link — owner only
+if (isOwner) {
+  document.getElementById('fuelTrackerLink').innerHTML =
+    '<a href="fuel-quick.html" class="fuel-open-link">Open Fuel Tracker →</a>';
+}
+
+const siteUrl = window.location.hostname !== 'localhost' ? window.location.href : 'your-site.netlify.app';
+document.getElementById('shareUrl').textContent = siteUrl.replace('?owner=true','');
+
+renderItinerary();
+renderParksAndStates();
+renderHeaderBadges();
+renderTripStats();
+loadWeather();
+loadStops().then(() => { loadLocation(); renderHeaderBadges(); renderTripStats(); loadWeather(); });
+loadFuelLog();
+</script>
+</body>
+</html>

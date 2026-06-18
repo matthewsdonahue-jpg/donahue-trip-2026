@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Itinerary Editor">
+<title>Dream Weaver — Itinerary Editor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #1C1A17; --surface: #252320; --surface2: #2E2B27;
+    --border: #3A3730; --text: #F0EDE6; --muted: #8A8780;
+    --faint: #5A5750; --gold: #C9963A; --gold-light: #E8B85A;
+    --gold-dim: #7A5A1E; --sage: #7A9E7E; --sage-light: #9DBF9E;
+    --rust: #B85C38; --rust-light: #D4744E; --sky: #5B8DB8; --cream: #F0EDE6;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { background: var(--bg); color: var(--text); font-family: 'IBM Plex Mono', monospace; }
+  body { max-width: 560px; margin: 0 auto; padding-bottom: calc(100px + var(--safe-bot)); }
+
+  /* ── Topbar ── */
+  .topbar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: calc(14px + var(--safe-top)) 18px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 200;
+  }
+  .topbar-title { font-family: 'Playfair Display', serif; font-size: 17px; color: var(--cream); }
+  .topbar-sub   { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); display: inline-block; margin-right: 5px; }
+  .sync-dot.ok { background: var(--sage); }
+  .sync-dot.busy { background: var(--gold); animation: pulse 1s infinite; }
+  .sync-dot.err  { background: var(--rust); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .sync-label { font-size: 9px; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase; }
+
+  .publish-btn {
+    background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+    color: var(--bg); border: none; border-radius: 7px;
+    padding: 9px 16px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    cursor: pointer; white-space: nowrap;
+  }
+  .publish-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* ── Section head ── */
+  .sec-head {
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--gold); padding: 16px 18px 8px;
+    border-bottom: 1px solid var(--border); margin-bottom: 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sec-head::before { content: '// '; color: var(--faint); }
+  .stop-count { color: var(--faint); font-size: 9px; letter-spacing: 0.06em; }
+
+  /* ── Stop list ── */
+  .stop-list { padding: 0 14px; margin-top: 8px; }
+  .stop-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 8px; overflow: hidden;
+    display: flex; align-items: stretch;
+  }
+  .stop-card:hover { border-color: var(--faint); }
+  .stop-order {
+    width: 32px; flex-shrink: 0; background: var(--surface2);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; padding: 8px 0;
+  }
+  .order-btn {
+    background: none; border: none; color: var(--faint); cursor: pointer;
+    padding: 2px 6px; font-size: 11px; border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .order-btn:hover { color: var(--gold); background: rgba(201,150,58,0.1); }
+  .order-num { font-size: 9px; color: var(--faint); letter-spacing: 0.05em; }
+
+  .stop-body { flex: 1; padding: 13px 14px; min-width: 0; }
+  .stop-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+  .stop-name { font-size: 14px; color: var(--cream); font-weight: 500; }
+  .stop-date { font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--faint); margin-bottom: 3px; }
+  .stop-detail { font-size: 10px; color: var(--muted); }
+  .stop-tags { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
+
+  .tag {
+    font-size: 8px; letter-spacing: 0.07em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 3px; border: 1px solid;
+  }
+  .tag-stay     { color: var(--sage);       border-color: var(--sage);       background: rgba(122,158,126,0.1); }
+  .tag-waypoint { color: var(--gold);        border-color: var(--gold-dim);   background: rgba(201,150,58,0.08); }
+  .tag-np       { color: var(--sage-light);  border-color: var(--sage);       background: rgba(122,158,126,0.1); }
+  .tag-sp       { color: #9DBF9E;            border-color: #7A9E7E;           background: rgba(122,158,126,0.08); }
+  .tag-bike     { color: var(--rust-light);  border-color: var(--rust);       background: rgba(184,92,56,0.08); }
+  .tag-poi      { color: var(--sky);         border-color: var(--sky);        background: rgba(91,141,184,0.08); }
+  .tag-r66      { color: var(--sky);         border-color: var(--sky);        background: rgba(91,141,184,0.08); }
+  .tag-state    { color: var(--faint);       border-color: var(--faint);      background: transparent; }
+
+  .stop-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+  .icon-btn {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--muted); cursor: pointer; padding: 6px 9px; font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .icon-btn:hover { border-color: var(--gold); color: var(--gold); background: rgba(201,150,58,0.08); }
+  .icon-btn.del:hover { border-color: var(--rust); color: var(--rust-light); background: rgba(184,92,56,0.08); }
+
+  /* ── FAB ── */
+  .fab {
+    position: fixed; bottom: calc(24px + var(--safe-bot)); right: 20px;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+    color: var(--bg); border: none; font-size: 24px; cursor: pointer;
+    box-shadow: 0 4px 20px rgba(201,150,58,0.4);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 150;
+  }
+  .fab:active { transform: scale(0.94); }
+
+  /* ── Modal ── */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75); z-index: 300;
+    align-items: flex-end; justify-content: center;
+    padding: 0;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 16px 16px 0 0;
+    width: 100%; max-width: 560px; max-height: 92vh;
+    overflow-y: auto; padding: 20px 20px calc(20px + var(--safe-bot));
+    border-top: 1px solid var(--border);
+  }
+  .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 18px; }
+  .modal-title { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: var(--cream); margin-bottom: 18px; }
+
+  /* ── Form fields ── */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field textarea, .field select {
+    width: 100%; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 13px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px; color: var(--cream); background: var(--bg);
+    -webkit-appearance: none; appearance: none;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,150,58,0.1); }
+  .field textarea { font-size: 14px; resize: vertical; min-height: 72px; }
+  .field select option { background: var(--bg); }
+  .field input[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .field-row .field { margin-bottom: 0; }
+
+  /* ── Geocode strip ── */
+  .geocode-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .geocode-input { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 12px 13px; font-family: 'IBM Plex Mono', monospace; font-size: 15px; color: var(--cream); background: var(--bg); }
+  .geocode-input:focus { outline: none; border-color: var(--gold); }
+  .geocode-btn {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--gold); padding: 12px 14px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; letter-spacing: 0.06em; cursor: pointer; white-space: nowrap;
+  }
+  .geocode-btn:hover { border-color: var(--gold); }
+  .geocode-result {
+    font-size: 10px; color: var(--sage); letter-spacing: 0.04em;
+    padding: 7px 0; display: none;
+  }
+  .geocode-result.show { display: block; }
+  .geocode-result.err { color: var(--rust-light); }
+
+  /* ── Button group selectors ── */
+  .btn-group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .btn-group label {
+    margin: 0; padding: 0;
+    display: flex; align-items: center;
+  }
+  .btn-group input[type=radio] { display: none; }
+  .btn-group-item {
+    font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 8px 13px; border-radius: 6px; border: 1px solid var(--border);
+    color: var(--muted); cursor: pointer; white-space: nowrap;
+    transition: all 0.12s;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .btn-group input[type=radio]:checked + .btn-group-item { border-color: var(--gold); color: var(--gold); background: rgba(201,150,58,0.1); }
+
+  /* type-specific checked colors */
+  .btn-group input[value=stay]:checked + .btn-group-item     { border-color: var(--sage);      color: var(--sage);      background: rgba(122,158,126,0.1); }
+  .btn-group input[value=waypoint]:checked + .btn-group-item { border-color: var(--gold);       color: var(--gold);      background: rgba(201,150,58,0.1); }
+  .btn-group input[value=np]:checked + .btn-group-item       { border-color: var(--sage-light); color: var(--sage-light);background: rgba(122,158,126,0.1); }
+  .btn-group input[value=sp]:checked + .btn-group-item       { border-color: var(--sage);       color: var(--sage);      background: rgba(122,158,126,0.08); }
+  .btn-group input[value=bike]:checked + .btn-group-item     { border-color: var(--rust-light); color: var(--rust-light);background: rgba(184,92,56,0.1); }
+  .btn-group input[value=poi]:checked + .btn-group-item      { border-color: var(--sky);        color: var(--sky);       background: rgba(91,141,184,0.1); }
+  .btn-group input[value=r66]:checked + .btn-group-item      { border-color: var(--sky);        color: var(--sky);       background: rgba(91,141,184,0.1); }
+
+  /* ── Modal actions ── */
+  .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
+  .btn-save {
+    flex: 1; background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+    color: var(--bg); border: none; border-radius: 8px; padding: 14px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    font-weight: 600; letter-spacing: 0.07em; cursor: pointer;
+  }
+  .btn-cancel {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 18px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; color: var(--muted); cursor: pointer;
+  }
+  .btn-delete {
+    background: none; border: 1px solid var(--faint); border-radius: 8px;
+    padding: 14px 18px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; color: var(--rust-light); cursor: pointer;
+  }
+  .btn-delete:hover { border-color: var(--rust); }
+
+  /* ── Collapsible extra fields ── */
+  .poi-fields { display: none; }
+  .poi-fields.show { display: block; }
+  .overnight-fields { display: none; }
+  .overnight-fields.show { display: block; }
+
+  /* ── Empty state ── */
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--faint); font-size: 11px; letter-spacing: 0.06em; }
+
+  /* ── Coords display ── */
+  .coords-display {
+    font-size: 10px; color: var(--faint); letter-spacing: 0.05em;
+    padding: 8px 12px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 7px; font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* ── Status toast ── */
+  .toast {
+    position: fixed; bottom: calc(80px + var(--safe-bot)); left: 50%;
+    transform: translateX(-50%); min-width: 240px; max-width: 90vw;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 20px; font-size: 11px;
+    letter-spacing: 0.05em; text-align: center; z-index: 400;
+    transition: opacity 0.3s; pointer-events: none;
+    display: none;
+  }
+  .toast.show { display: block; }
+  .toast.ok  { color: var(--sage); border-color: rgba(122,158,126,0.4); }
+  .toast.err { color: var(--rust-light); border-color: rgba(184,92,56,0.4); }
+
+  /* ── Section divider ── */
+  .field-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 0.9s linear infinite; display: inline-block; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="topbar-title">Itinerary Editor</div>
+    <div class="topbar-sub">Dream Weaver Route</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div style="display:flex;align-items:center;gap:5px;">
+      <span class="sync-dot" id="syncDot"></span>
+      <span class="sync-label" id="syncLabel">Loading</span>
+    </div>
+    <button class="publish-btn" id="publishBtn" onclick="publishStops()">Publish</button>
+  </div>
+</div>
+
+<!-- STOP LIST -->
+<div class="sec-head">
+  <span>Stops</span>
+  <span class="stop-count" id="stopCount">0 stops</span>
+</div>
+<div class="stop-list" id="stopList"></div>
+
+<!-- ADD FAB -->
+<button class="fab" onclick="openModal(null)" title="Add stop">+</button>
+
+<!-- EDIT MODAL -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modalTitle">Add Stop</div>
+
+    <!-- ── Geocode ── -->
+    <div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Search / Geocode</div>
+    <div class="geocode-row">
+      <input class="geocode-input" id="geocodeInput" placeholder="City name or POI (e.g. Grand Canyon South Rim)" autocomplete="off">
+      <button class="geocode-btn" onclick="doGeocode()">🔍 Locate</button>
+    </div>
+    <div class="geocode-result" id="geocodeResult"></div>
+
+    <!-- ── Name ── -->
+    <div class="field">
+      <label>Display Name</label>
+      <input type="text" id="fName" placeholder="e.g. Grand Canyon South Rim">
+    </div>
+
+    <!-- ── Category ── -->
+    <div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Category</div>
+    <div class="btn-group" id="categoryGroup">
+      <label><input type="radio" name="category" value="town" checked><span class="btn-group-item">🏘 Town / City</span></label>
+      <label><input type="radio" name="category" value="poi"><span class="btn-group-item">📍 Point of Interest</span></label>
+    </div>
+
+    <!-- ── POI Type (shown for POI only) ── -->
+    <div class="poi-fields" id="poiFields">
+      <div class="field">
+        <label>POI Category</label>
+        <select id="fPoiType">
+          <option value="viewpoint">Viewpoint / Overlook</option>
+          <option value="trailhead">Trailhead / Hike</option>
+          <option value="museum">Museum / Historic Site</option>
+          <option value="attraction">Attraction / Activity</option>
+          <option value="restaurant">Restaurant / Food</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Hours</label>
+        <input type="text" id="fHours" placeholder="e.g. Sunrise–Sunset · Fee required">
+      </div>
+      <div class="field">
+        <label>Photo URL (optional)</label>
+        <input type="url" id="fPhotoUrl" placeholder="https://...">
+      </div>
+      <hr class="field-divider">
+    </div>
+
+    <!-- ── Stop Type ── -->
+    <div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Stop Type</div>
+    <div class="btn-group" id="badgeGroup">
+      <label><input type="radio" name="badge" value="stay"><span class="btn-group-item">🌙 Overnight</span></label>
+      <label><input type="radio" name="badge" value="waypoint" checked><span class="btn-group-item">📍 Waypoint</span></label>
+      <label><input type="radio" name="badge" value="np"><span class="btn-group-item">⛰ Nat'l Park</span></label>
+      <label><input type="radio" name="badge" value="sp"><span class="btn-group-item">🌲 State Park</span></label>
+      <label><input type="radio" name="badge" value="bike"><span class="btn-group-item">🚵 MTB/Bike</span></label>
+      <label><input type="radio" name="badge" value="poi"><span class="btn-group-item">📸 POI</span></label>
+      <label><input type="radio" name="badge" value="r66"><span class="btn-group-item">⚡ Route 66</span></label>
+      <label><input type="radio" name="badge" value=""><span class="btn-group-item">— None</span></label>
+    </div>
+
+    <!-- ── Overnight-only fields ── -->
+    <div class="overnight-fields" id="overnightFields">
+      <div class="field">
+        <label>Night of</label>
+        <input type="text" id="fNight" placeholder="e.g. Jun 20">
+      </div>
+      <hr class="field-divider">
+    </div>
+
+    <!-- ── Common fields ── -->
+    <div class="field-row">
+      <div class="field">
+        <label>Date label</label>
+        <input type="text" id="fDate" placeholder="e.g. Sat Jun 20">
+      </div>
+      <div class="field">
+        <label>Drive to next</label>
+        <input type="text" id="fDrive" placeholder="e.g. ~3 hrs">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Detail / Notes</label>
+      <textarea id="fDetail" placeholder="Campground name, what to see, booking info…"></textarea>
+    </div>
+
+    <!-- ── Location ── -->
+    <hr class="field-divider">
+    <div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Location</div>
+    <div class="field-row">
+      <div class="field">
+        <label>State</label>
+        <input type="text" id="fState" placeholder="e.g. AZ" maxlength="2" style="text-transform:uppercase">
+      </div>
+      <div class="field">
+        <label>Coordinates</label>
+        <div class="coords-display" id="coordsDisplay">Not set</div>
+      </div>
+    </div>
+
+    <!-- Hidden lat/lng storage -->
+    <input type="hidden" id="fLat">
+    <input type="hidden" id="fLng">
+
+    <!-- ── Actions ── -->
+    <div class="modal-actions">
+      <button class="btn-delete" id="btnDelete" onclick="deleteStop()" style="display:none">Delete</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveStop()">Save Stop</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────
+const SUPABASE_URL = 'https://sizbwulpzanxvpvooxiz.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpemJ3dWxwemFueHZwdm9veGl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MzI5MzAsImV4cCI6MjA5NzMwODkzMH0.uw3mPjyLn4Rkc5JD6FnowexDLU3X-R2Rb_Dv-XQjpxY';
+
+// ── State ──────────────────────────────────────────────────
+let stops = [];
+let editingIdx = null;
+let unsaved = false;
+
+// Badge display config
+const BADGE_LABELS = {
+  stay: 'overnight', waypoint: 'waypoint', np: "nat'l park",
+  sp: 'state park', bike: 'mtb', poi: 'poi', r66: 'route 66'
+};
+const BADGE_CLS = {
+  stay: 'tag-stay', waypoint: 'tag-waypoint', np: 'tag-np',
+  sp: 'tag-sp', bike: 'tag-bike', poi: 'tag-poi', r66: 'tag-r66'
+};
+
+// US state abbreviation map (from Nominatim full names)
+const STATE_ABBR = {
+  'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA',
+  'Colorado':'CO','Connecticut':'CT','Delaware':'DE','Florida':'FL','Georgia':'GA',
+  'Hawaii':'HI','Idaho':'ID','Illinois':'IL','Indiana':'IN','Iowa':'IA',
+  'Kansas':'KS','Kentucky':'KY','Louisiana':'LA','Maine':'ME','Maryland':'MD',
+  'Massachusetts':'MA','Michigan':'MI','Minnesota':'MN','Mississippi':'MS',
+  'Missouri':'MO','Montana':'MT','Nebraska':'NE','Nevada':'NV','New Hampshire':'NH',
+  'New Jersey':'NJ','New Mexico':'NM','New York':'NY','North Carolina':'NC',
+  'North Dakota':'ND','Ohio':'OH','Oklahoma':'OK','Oregon':'OR','Pennsylvania':'PA',
+  'Rhode Island':'RI','South Carolina':'SC','South Dakota':'SD','Tennessee':'TN',
+  'Texas':'TX','Utah':'UT','Vermont':'VT','Virginia':'VA','Washington':'WA',
+  'West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY'
+};
+
+// ── Boot ───────────────────────────────────────────────────
+loadStops();
+setupCategoryToggle();
+setupBadgeToggle();
+
+// ── Supabase ───────────────────────────────────────────────
+function setSyncState(state, label) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  document.getElementById('syncLabel').textContent = label;
+}
+
+async function loadStops() {
+  setSyncState('busy', 'Loading…');
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/itinerary?id=eq.1&limit=1`, {
+      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+    });
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0 && data[0].data) {
+      const parsed = JSON.parse(data[0].data);
+      if (Array.isArray(parsed) && parsed.length > 0) stops = parsed;
+    }
+    setSyncState('ok', 'Loaded');
+    renderList();
+  } catch(e) {
+    setSyncState('err', 'Load failed');
+    showToast('Could not load itinerary from Supabase', 'err');
+  }
+}
+
+async function publishStops() {
+  const btn = document.getElementById('publishBtn');
+  btn.disabled = true;
+  btn.textContent = 'Publishing…';
+  setSyncState('busy', 'Saving…');
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/itinerary`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY,
+        'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({ id: 1, data: JSON.stringify(stops), updated_at: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error();
+    setSyncState('ok', 'Published ✓');
+    unsaved = false;
+    showToast('Itinerary published — trip site updated!', 'ok');
+  } catch(e) {
+    setSyncState('err', 'Publish failed');
+    showToast('Could not publish. Check connection.', 'err');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Publish';
+}
+
+// ── List render ────────────────────────────────────────────
+function renderList() {
+  const list = document.getElementById('stopList');
+  document.getElementById('stopCount').textContent = `${stops.length} stop${stops.length !== 1 ? 's' : ''}`;
+
+  if (!stops.length) {
+    list.innerHTML = '<div class="empty-state">No stops yet.<br>Tap + to add your first stop.</div>';
+    return;
+  }
+
+  list.innerHTML = stops.map((s, i) => {
+    const badge = s.badge && BADGE_LABELS[s.badge]
+      ? `<span class="tag ${BADGE_CLS[s.badge] || ''}">${BADGE_LABELS[s.badge]}</span>` : '';
+    const stateTag = s.state ? `<span class="tag tag-state">${s.state}</span>` : '';
+    const poiTypeTag = s.category === 'poi' && s.poiType
+      ? `<span class="tag tag-poi">${s.poiType}</span>` : '';
+    const hasCoords = s.lat && s.lng;
+    const coordsNote = hasCoords
+      ? `<span style="font-size:9px;color:var(--faint);letter-spacing:0.04em;">📍 ${parseFloat(s.lat).toFixed(3)}, ${parseFloat(s.lng).toFixed(3)}</span>`
+      : `<span style="font-size:9px;color:var(--rust-light);letter-spacing:0.04em;">⚠ No coords</span>`;
+
+    return `<div class="stop-card">
+      <div class="stop-order">
+        <button class="order-btn" onclick="moveStop(${i}, -1)" title="Move up" ${i===0?'style="opacity:0.3;pointer-events:none"':''}>↑</button>
+        <span class="order-num">${i+1}</span>
+        <button class="order-btn" onclick="moveStop(${i}, 1)" title="Move down" ${i===stops.length-1?'style="opacity:0.3;pointer-events:none"':''}>↓</button>
+      </div>
+      <div class="stop-body">
+        <div class="stop-top">
+          <div style="flex:1;min-width:0;">
+            <div class="stop-date">${s.date || 'No date set'}</div>
+            <div class="stop-name">${s.name}</div>
+            ${s.detail ? `<div class="stop-detail">${s.detail}</div>` : ''}
+          </div>
+          <div class="stop-actions">
+            <button class="icon-btn" onclick="openModal(${i})" title="Edit">✏</button>
+            <button class="icon-btn del" onclick="confirmDelete(${i})" title="Delete">✕</button>
+          </div>
+        </div>
+        <div class="stop-tags">
+          ${badge}${poiTypeTag}${stateTag}${coordsNote}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Unsaved indicator
+  const label = document.getElementById('syncLabel');
+  if (unsaved) {
+    setSyncState('busy', 'Unsaved changes');
+  }
+}
+
+// ── Reorder ────────────────────────────────────────────────
+function moveStop(idx, dir) {
+  const to = idx + dir;
+  if (to < 0 || to >= stops.length) return;
+  [stops[idx], stops[to]] = [stops[to], stops[idx]];
+  markUnsaved();
+  renderList();
+}
+
+function markUnsaved() {
+  unsaved = true;
+  setSyncState('busy', 'Unsaved changes');
+}
+
+// ── Modal ──────────────────────────────────────────────────
+function openModal(idx) {
+  editingIdx = idx;
+  const s = idx !== null ? stops[idx] : {};
+
+  document.getElementById('modalTitle').textContent = idx !== null ? 'Edit Stop' : 'Add Stop';
+  document.getElementById('fName').value    = s.name    || '';
+  document.getElementById('fDate').value    = s.date    || '';
+  document.getElementById('fDrive').value   = s.drive   || '';
+  document.getElementById('fDetail').value  = s.detail  || '';
+  document.getElementById('fNight').value   = s.night   || '';
+  document.getElementById('fState').value   = s.state   || '';
+  document.getElementById('fLat').value     = s.lat     || '';
+  document.getElementById('fLng').value     = s.lng     || '';
+  document.getElementById('fPoiType').value = s.poiType || 'viewpoint';
+  document.getElementById('fHours').value   = s.hours   || '';
+  document.getElementById('fPhotoUrl').value= s.photoUrl|| '';
+  document.getElementById('geocodeInput').value = '';
+
+  updateCoordsDisplay(s.lat, s.lng);
+
+  // Set category
+  const cat = s.category || 'town';
+  document.querySelector(`input[name=category][value="${cat}"]`).checked = true;
+  togglePoiFields(cat === 'poi');
+
+  // Set badge
+  const badge = s.badge || 'waypoint';
+  const badgeInput = document.querySelector(`input[name=badge][value="${badge}"]`);
+  if (badgeInput) badgeInput.checked = true;
+  else document.querySelector('input[name=badge][value=""]').checked = true;
+  toggleOvernightFields(badge === 'stay');
+
+  document.getElementById('btnDelete').style.display = idx !== null ? 'inline-block' : 'none';
+  document.getElementById('geocodeResult').className = 'geocode-result';
+  document.getElementById('geocodeResult').textContent = '';
+  document.getElementById('modalBg').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('open');
+  document.body.style.overflow = '';
+  editingIdx = null;
+}
+
+// Close on backdrop click
+document.getElementById('modalBg').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalBg')) closeModal();
+});
+
+function setupCategoryToggle() {
+  document.querySelectorAll('input[name=category]').forEach(r => {
+    r.addEventListener('change', () => togglePoiFields(r.value === 'poi'));
+  });
+}
+
+function togglePoiFields(show) {
+  document.getElementById('poiFields').classList.toggle('show', show);
+}
+
+function setupBadgeToggle() {
+  document.querySelectorAll('input[name=badge]').forEach(r => {
+    r.addEventListener('change', () => toggleOvernightFields(r.value === 'stay'));
+  });
+}
+
+function toggleOvernightFields(show) {
+  document.getElementById('overnightFields').classList.toggle('show', show);
+}
+
+function updateCoordsDisplay(lat, lng) {
+  const el = document.getElementById('coordsDisplay');
+  if (lat && lng) {
+    el.textContent = `${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)}`;
+    el.style.color = 'var(--sage)';
+  } else {
+    el.textContent = 'Not set';
+    el.style.color = 'var(--faint)';
+  }
+}
+
+// ── Geocoding ──────────────────────────────────────────────
+async function doGeocode() {
+  const query = document.getElementById('geocodeInput').value.trim();
+  if (!query) return;
+  const resultEl = document.getElementById('geocodeResult');
+  resultEl.className = 'geocode-result show';
+  resultEl.textContent = '🔍 Searching…';
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'DreamWeaverTripApp/1.0' } }
+    );
+    const data = await res.json();
+    if (!data.length) {
+      resultEl.className = 'geocode-result show err';
+      resultEl.textContent = 'No results — try a more specific name';
+      return;
+    }
+
+    const place = data[0];
+    const lat = parseFloat(place.lat);
+    const lng = parseFloat(place.lon);
+
+    // Reverse geocode for state
+    const revRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'DreamWeaverTripApp/1.0' } }
+    );
+    const rev = await revRes.json();
+    const stateFull = rev.address?.state || '';
+    const stateCode = STATE_ABBR[stateFull] || stateFull.slice(0,2).toUpperCase();
+
+    // Auto-fill fields
+    document.getElementById('fLat').value = lat;
+    document.getElementById('fLng').value = lng;
+    document.getElementById('fState').value = stateCode;
+    updateCoordsDisplay(lat, lng);
+
+    // Suggest display name if empty
+    if (!document.getElementById('fName').value) {
+      const city = rev.address?.city || rev.address?.town || rev.address?.village || rev.address?.county || query;
+      document.getElementById('fName').value = stateCode ? `${city}, ${stateCode}` : city;
+    }
+
+    resultEl.className = 'geocode-result show';
+    resultEl.textContent = `✓ Found: ${place.display_name.slice(0, 60)}…`;
+  } catch(e) {
+    resultEl.className = 'geocode-result show err';
+    resultEl.textContent = 'Geocode failed — check connection';
+  }
+}
+
+// Also allow Enter key in geocode input
+document.getElementById('geocodeInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); doGeocode(); }
+});
+
+// ── Save stop ──────────────────────────────────────────────
+function saveStop() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { showToast('Name is required', 'err'); return; }
+
+  const badge = document.querySelector('input[name=badge]:checked')?.value || null;
+  const category = document.querySelector('input[name=category]:checked')?.value || 'town';
+  const lat  = parseFloat(document.getElementById('fLat').value) || null;
+  const lng  = parseFloat(document.getElementById('fLng').value) || null;
+
+  const s = {
+    name,
+    category,
+    badge:     badge || null,
+    date:      document.getElementById('fDate').value.trim()   || null,
+    drive:     document.getElementById('fDrive').value.trim()  || null,
+    detail:    document.getElementById('fDetail').value.trim() || null,
+    night:     document.getElementById('fNight').value.trim()  || null,
+    state:     document.getElementById('fState').value.trim().toUpperCase() || null,
+    lat, lng,
+    // POI extras
+    ...(category === 'poi' ? {
+      poiType:  document.getElementById('fPoiType').value || null,
+      hours:    document.getElementById('fHours').value.trim()    || null,
+      photoUrl: document.getElementById('fPhotoUrl').value.trim() || null,
+    } : {})
+  };
+
+  if (editingIdx !== null) {
+    stops[editingIdx] = s;
+    showToast('Stop updated', 'ok');
+  } else {
+    // Insert before the last stop (typically "Home")
+    const insertAt = stops.length > 0 ? stops.length - 1 : 0;
+    stops.splice(insertAt, 0, s);
+    showToast('Stop added', 'ok');
+  }
+
+  closeModal();
+  markUnsaved();
+  renderList();
+}
+
+// ── Delete ─────────────────────────────────────────────────
+function deleteStop() {
+  if (editingIdx === null) return;
+  const name = stops[editingIdx].name;
+  if (!confirm(`Remove "${name}" from the itinerary?`)) return;
+  stops.splice(editingIdx, 1);
+  closeModal();
+  markUnsaved();
+  renderList();
+  showToast(`Removed ${name}`, 'ok');
+}
+
+function confirmDelete(idx) {
+  const name = stops[idx].name;
+  if (!confirm(`Remove "${name}"?`)) return;
+  stops.splice(idx, 1);
+  markUnsaved();
+  renderList();
+  showToast(`Removed ${name}`, 'ok');
+}
+
+// ── Toast ──────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type || ''}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = 'toast', 3000);
+}
+
+// ── Warn before leaving with unsaved changes ───────────────
+window.addEventListener('beforeunload', e => {
+  if (unsaved) { e.preventDefault(); e.returnValue = ''; }
+});
+</script>
+</body>
+</html>

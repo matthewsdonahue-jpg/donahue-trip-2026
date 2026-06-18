@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dream Weaver Fuel">
+<meta name="theme-color" content="#1C1A17">
+<title>Dream Weaver — Fuel</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #1C1A17;
+    --surface: #252320;
+    --surface2: #2E2B27;
+    --border: #3A3730;
+    --text: #F0EDE6;
+    --muted: #8A8780;
+    --faint: #5A5750;
+    --gold: #C9963A;
+    --gold-light: #E8B85A;
+    --gold-dim: #7A5A1E;
+    --sage: #7A9E7E;
+    --rust: #B85C38;
+    --rust-light: #D4744E;
+    --cream: #F0EDE6;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { background: var(--bg); color: var(--text); font-family: 'IBM Plex Mono', monospace; height: 100%; }
+  body { max-width: 480px; margin: 0 auto; min-height: 100%; padding-bottom: calc(80px + var(--safe-bot)); }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: calc(12px + var(--safe-top)) 20px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-title {
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--gold); font-weight: 500;
+  }
+  .topbar-sub { font-size: 9px; color: var(--muted); letter-spacing: 0.06em; }
+  .sync-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--faint);
+  }
+  .sync-dot.synced { background: var(--sage); }
+  .sync-dot.syncing { background: var(--gold); animation: pulse 1.2s infinite; }
+  .sync-dot.error { background: var(--rust); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── Nav tabs ── */
+  .nav-tabs {
+    display: flex; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-tab {
+    flex: 1; padding: 12px 8px; text-align: center;
+    font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); cursor: pointer; border: none; background: none;
+    border-bottom: 2px solid transparent; transition: color 0.15s;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .nav-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  /* ── Pages ── */
+  .page { display: none; padding: 20px 16px; }
+  .page.active { display: block; }
+
+  /* ── Status card ── */
+  .status-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 16px;
+    position: relative; overflow: hidden;
+  }
+  .status-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold), var(--gold-dim));
+  }
+
+  /* ── Gauge ── */
+  .gauge-wrap { display: flex; justify-content: center; margin-bottom: 16px; }
+  .gauge-svg { overflow: visible; }
+  .gauge-track { fill: none; stroke: var(--border); stroke-width: 10; stroke-linecap: round; }
+  .gauge-fill  { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease, stroke 0.4s; }
+  .gauge-center { text-anchor: middle; dominant-baseline: middle; }
+
+  /* ── Stats strip ── */
+  .stats-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+  .stat-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 10px; text-align: center; }
+  .stat-label { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+  .stat-val { font-size: 16px; font-weight: 600; color: var(--cream); }
+  .stat-unit { font-size: 9px; color: var(--muted); }
+
+  /* ── Alert banner ── */
+  .mpg-badge {
+    border-radius: 6px; padding: 7px 12px; font-size: 9px;
+    letter-spacing: 0.08em; text-transform: uppercase; text-align: center;
+    margin-bottom: 12px; display: none; border: 1px solid;
+  }
+  .mpg-badge.default { color: var(--muted); background: rgba(90,87,80,0.15); border-color: var(--faint); }
+  .mpg-badge.updated { color: var(--sage); background: rgba(122,158,126,0.12); border-color: var(--sage); }
+
+  .fuel-alert {
+    border-radius: 8px; padding: 10px 14px; font-size: 11px;
+    letter-spacing: 0.04em; margin-bottom: 16px; display: none;
+    border: 1px solid;
+  }
+  .fuel-alert.low  { color: var(--gold-light); background: rgba(201,150,58,0.1); border-color: var(--gold-dim); }
+  .fuel-alert.fill { color: var(--rust-light); background: rgba(184,92,56,0.12); border-color: var(--rust); }
+  .fuel-alert.show { display: block; }
+
+  /* ── Section head ── */
+  .sec-head {
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--gold); padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+  }
+  .sec-head::before { content: '// '; color: var(--faint); }
+
+  /* ── Fill-up form ── */
+  .form-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 16px;
+  }
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: block; font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+  }
+  .field input, .field textarea {
+    width: 100%; border: 1px solid var(--border); border-radius: 8px;
+    padding: 13px 14px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px; /* prevents iOS zoom */
+    color: var(--cream); background: var(--bg); appearance: none;
+    -webkit-appearance: none;
+  }
+  .field input:focus, .field textarea:focus {
+    outline: none; border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(201,150,58,0.12);
+  }
+  .field textarea { font-size: 14px; resize: vertical; min-height: 70px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field-row .field { margin-bottom: 0; }
+
+  .cost-preview {
+    background: rgba(201,150,58,0.08); border: 1px solid var(--gold-dim);
+    border-radius: 8px; padding: 12px 14px; text-align: center;
+    font-size: 22px; font-weight: 600; color: var(--gold); margin-bottom: 14px;
+    display: none;
+  }
+  .cost-preview.show { display: block; }
+  .cost-preview span { display: block; font-size: 9px; font-weight: 400; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 3px; }
+
+  .submit-btn {
+    width: 100%; background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+    color: var(--bg); border: none; border-radius: 10px;
+    padding: 16px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .submit-btn:hover { opacity: 0.88; }
+  .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .submit-btn:active { opacity: 0.75; }
+
+  .form-msg {
+    border-radius: 8px; padding: 10px 14px; font-size: 11px;
+    letter-spacing: 0.04em; margin-top: 10px; display: none; border: 1px solid;
+  }
+  .form-msg.ok  { color: var(--sage); background: rgba(122,158,126,0.1); border-color: rgba(122,158,126,0.3); }
+  .form-msg.err { color: var(--rust-light); background: rgba(184,92,56,0.1); border-color: rgba(184,92,56,0.3); }
+  .form-msg.show { display: block; }
+
+  /* ── History list ── */
+  .fill-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 15px 16px; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .fill-left { flex: 1; }
+  .fill-date { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+  .fill-loc  { font-size: 13px; color: var(--cream); margin-bottom: 3px; }
+  .fill-detail { font-size: 10px; color: var(--muted); }
+  .fill-right { text-align: right; flex-shrink: 0; padding-left: 12px; }
+  .fill-cost { font-size: 18px; font-weight: 600; color: var(--gold); }
+  .fill-gal  { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .fill-mpg  { font-size: 10px; color: var(--sage); margin-top: 2px; }
+  .empty-state { color: var(--faint); font-size: 11px; text-align: center; padding: 30px 20px; letter-spacing: 0.05em; }
+
+  /* ── Settings page ── */
+  .setting-row {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 10px;
+  }
+  .setting-label { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .setting-input {
+    width: 100%; border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px; color: var(--cream); background: var(--bg);
+  }
+  .setting-input:focus { outline: none; border-color: var(--gold); }
+  .setting-note { font-size: 10px; color: var(--faint); margin-top: 6px; line-height: 1.5; }
+  .save-settings-btn {
+    width: 100%; background: var(--surface2); color: var(--cream);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 13px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; letter-spacing: 0.06em; cursor: pointer; margin-top: 6px;
+  }
+  .save-settings-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  .trip-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .trip-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .trip-stat-label { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+  .trip-stat-val { font-size: 20px; font-weight: 600; color: var(--cream); }
+  .trip-stat-unit { font-size: 10px; color: var(--muted); }
+
+  .export-btn {
+    width: 100%; background: none; border: 1px solid var(--border); border-radius: 8px;
+    padding: 13px; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    letter-spacing: 0.06em; color: var(--muted); cursor: pointer; margin-bottom: 10px;
+  }
+  .export-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  .offline-badge {
+    font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--gold); background: rgba(201,150,58,0.12);
+    border: 1px solid var(--gold-dim); border-radius: 4px;
+    padding: 2px 7px; display: none;
+  }
+  .offline-badge.show { display: inline; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-title">✦ Dream Weaver Fuel</div>
+    <div class="topbar-sub">Diesel tracker · 12 MPG</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="offline-badge" id="offlineBadge">Offline Queue: <span id="queueCount">0</span></span>
+    <div class="sync-dot" id="syncDot" title="Sync status"></div>
+  </div>
+</div>
+
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="showPage('dash')">Dashboard</button>
+  <button class="nav-tab" onclick="showPage('fill')">Fill Up</button>
+  <button class="nav-tab" onclick="showPage('history')">Log</button>
+  <button class="nav-tab" onclick="showPage('settings')">Settings</button>
+</div>
+
+<!-- ══════════════════ DASHBOARD ══════════════════ -->
+<div class="page active" id="page-dash">
+
+  <div class="mpg-badge" id="mpgBadge"></div>
+  <div class="fuel-alert" id="fuelAlert"></div>
+
+  <div class="status-card">
+    <div class="gauge-wrap">
+      <svg class="gauge-svg" viewBox="0 0 160 120" width="200" height="150">
+        <!-- Arc: -210° to -30° (240° sweep, starting lower-left going clockwise) -->
+        <path class="gauge-track" id="gaugeTrack" d=""/>
+        <path class="gauge-fill"  id="gaugeFill"  d=""/>
+        <!-- Labels -->
+        <text x="14"  y="112" fill="#5A5750" font-family="monospace" font-size="7" text-anchor="middle">E</text>
+        <text x="146" y="112" fill="#5A5750" font-family="monospace" font-size="7" text-anchor="middle">F</text>
+        <!-- Center: pct + label -->
+        <text class="gauge-center" x="80" y="70" id="gaugePct" fill="#F0EDE6" font-family="monospace" font-size="22" font-weight="600">—</text>
+        <text class="gauge-center" x="80" y="92" id="gaugeLabel" fill="#8A8780" font-family="monospace" font-size="8" letter-spacing="1">FUEL LEVEL</text>
+        <text class="gauge-center" x="80" y="106" id="gaugeStatus" fill="#C9963A" font-family="monospace" font-size="8" letter-spacing="1"></text>
+      </svg>
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat-item">
+        <div class="stat-label">Est. Range</div>
+        <div class="stat-val" id="statRange">—</div>
+        <div class="stat-unit">miles</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Last Fill</div>
+        <div class="stat-val" id="statGallons">—</div>
+        <div class="stat-unit">gallons</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Trip Cost</div>
+        <div class="stat-val" id="statCost">—</div>
+        <div class="stat-unit">total fuel</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
+        <div class="stat-label">Current Odometer</div>
+        <div id="statOdo" style="font-size:14px;font-weight:600;color:var(--cream)">—</div>
+        <div class="stat-unit">miles</div>
+      </div>
+      <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
+        <div class="stat-label">Miles Since Fill</div>
+        <div id="statSinceFill" style="font-size:14px;font-weight:600;color:var(--cream)">—</div>
+        <div class="stat-unit">miles</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-head">Last fill-up</div>
+  <div id="lastFillCard">
+    <div class="empty-state">No fill-ups logged yet</div>
+  </div>
+</div>
+
+<!-- ══════════════════ FILL UP ══════════════════ -->
+<div class="page" id="page-fill">
+
+  <div class="form-card">
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="fDate" autocomplete="off">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Gallons</label>
+        <input type="number" id="fGallons" placeholder="0.000" step="0.001" min="0" inputmode="decimal" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Price / Gal</label>
+        <input type="number" id="fPPG" placeholder="0.000" step="0.001" min="0" inputmode="decimal" autocomplete="off">
+      </div>
+    </div>
+    <div class="field">
+      <label>Odometer (miles)</label>
+      <input type="number" id="fOdo" placeholder="e.g. 42500" step="1" min="0" inputmode="numeric" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Location (optional)</label>
+      <input type="text" id="fLoc" placeholder="e.g. Amarillo, TX" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="fNotes" placeholder="e.g. full tank, good price"></textarea>
+    </div>
+  </div>
+
+  <div class="cost-preview" id="costPreview">
+    <span id="costPreviewAmt">$0.00</span>
+    <span>Estimated fill cost</span>
+  </div>
+
+  <button class="submit-btn" id="submitBtn" onclick="submitFill()">Log Fill-Up</button>
+  <div class="form-msg" id="formMsg"></div>
+</div>
+
+<!-- ══════════════════ LOG ══════════════════ -->
+<div class="page" id="page-history">
+
+  <div class="trip-stat-grid" id="tripStats">
+    <div class="trip-stat"><div class="trip-stat-label">Total Filled</div><div class="trip-stat-val" id="tripGallons">—</div><div class="trip-stat-unit">gallons</div></div>
+    <div class="trip-stat"><div class="trip-stat-label">Total Spent</div><div class="trip-stat-val" id="tripSpent">$—</div><div class="trip-stat-unit">on diesel</div></div>
+    <div class="trip-stat"><div class="trip-stat-label">Avg Price</div><div class="trip-stat-val" id="tripAvgPPG">$—</div><div class="trip-stat-unit">per gallon</div></div>
+    <div class="trip-stat"><div class="trip-stat-label">Avg MPG</div><div class="trip-stat-val" id="tripAvgMPG">—</div><div class="trip-stat-unit">mpg</div></div>
+  </div>
+
+  <button class="export-btn" onclick="exportCSV()">⬇ Export CSV Log</button>
+
+  <div class="sec-head">Fill-up log</div>
+  <div id="historyList"></div>
+</div>
+
+<!-- ══════════════════ SETTINGS ══════════════════ -->
+<div class="page" id="page-settings">
+
+  <div class="setting-row">
+    <div class="setting-label">Supabase URL</div>
+    <input class="setting-input" id="sUrl" placeholder="https://xxxx.supabase.co" type="url">
+    <div class="setting-note">From your Supabase project → Settings → API</div>
+  </div>
+  <div class="setting-row">
+    <div class="setting-label">Supabase Anon Key</div>
+    <input class="setting-input" id="sKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." type="password">
+    <div class="setting-note">Settings → API Keys → Legacy → anon public</div>
+  </div>
+  <div class="setting-row">
+    <div class="setting-label">Tank Size (gallons)</div>
+    <input class="setting-input" id="sTank" placeholder="45" type="number" step="0.5">
+    <div class="setting-note">Used to estimate fuel level percentage. Default: 45 gal</div>
+  </div>
+  <div class="setting-row">
+    <div class="setting-label">MPG (locked)</div>
+    <input class="setting-input" value="12 MPG (diesel, hardcoded)" disabled style="opacity:0.5;">
+  </div>
+  <button class="save-settings-btn" onclick="saveSettings()">Save Settings</button>
+
+  <div style="margin-top:20px;">
+    <div class="sec-head">About</div>
+    <div style="font-size:10px;color:var(--faint);line-height:1.7;letter-spacing:0.04em;">
+      Dream Weaver Fuel tracks diesel consumption across all devices via Supabase.<br><br>
+      Add to iPhone home screen: Safari → Share → Add to Home Screen.<br><br>
+      Data syncs automatically when online. Offline fill-ups queue and sync when connection is restored.
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────
+const MPG_DEFAULT = 12;
+const MPG_UPDATE_THRESHOLD = 0.15; // 15% deviation triggers switch to actual MPG
+
+function calcActualMpg(entries) {
+  // entries sorted newest-first
+  // MPG for a pair = miles driven / gallons pumped at older fill-up
+  const pairs = [];
+  for (let i = 0; i < entries.length - 1; i++) {
+    const miles = parseInt(entries[i].odometer) - parseInt(entries[i+1].odometer);
+    const gal   = parseFloat(entries[i+1].gallons);
+    if (miles > 0 && miles < 3000 && gal > 0) pairs.push(miles / gal);
+  }
+  if (!pairs.length) return null;
+  return pairs.reduce((a,b) => a+b) / pairs.length;
+}
+
+function getEffectiveMpg(entries) {
+  if (entries.length < 2) return { mpg: MPG_DEFAULT, source: 'default', actual: null };
+  const actual = calcActualMpg(entries);
+  if (actual === null) return { mpg: MPG_DEFAULT, source: 'default', actual: null };
+  const pctDiff = Math.abs(actual - MPG_DEFAULT) / MPG_DEFAULT;
+  if (pctDiff > MPG_UPDATE_THRESHOLD) {
+    return { mpg: parseFloat(actual.toFixed(1)), source: 'actual', actual: parseFloat(actual.toFixed(1)) };
+  }
+  return { mpg: MPG_DEFAULT, source: 'default', actual: parseFloat(actual.toFixed(1)) };
+}
+
+// ── State ─────────────────────────────────────────────────
+let cfg = {
+  url: 'https://sizbwulpzanxvpvooxiz.supabase.co',
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpemJ3dWxwemFueHZwdm9veGl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MzI5MzAsImV4cCI6MjA5NzMwODkzMH0.uw3mPjyLn4Rkc5JD6FnowexDLU3X-R2Rb_Dv-XQjpxY',
+  tank: 45
+};
+let fillUps = [];         // from Supabase
+let offlineQueue = [];    // pending posts
+
+// ── Local storage keys ─────────────────────────────────────
+const LS_CFG   = 'dwf_cfg';
+const LS_CACHE = 'dwf_cache';
+const LS_QUEUE = 'dwf_queue';
+
+// ── Boot ───────────────────────────────────────────────────
+loadCfg();
+loadCache();
+loadQueue();
+setDefaultDate();
+computePreview();
+renderDash();
+renderHistory();
+
+// Attach input listeners for cost preview
+['fGallons','fPPG'].forEach(id => {
+  document.getElementById(id).addEventListener('input', computePreview);
+});
+
+// Try to sync on load
+syncAll();
+
+// ── Navigation ─────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const tabs = document.querySelectorAll('.nav-tab');
+  const map = {dash:0, fill:1, history:2, settings:3};
+  tabs[map[name]].classList.add('active');
+  if (name === 'history') renderHistory();
+  if (name === 'dash') renderDash();
+}
+
+// ── Config ─────────────────────────────────────────────────
+function loadCfg() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_CFG) || '{}');
+    // Only override defaults if user has explicitly saved settings
+    if (saved.url) cfg.url = saved.url;
+    if (saved.key) cfg.key = saved.key;
+    if (saved.tank) cfg.tank = saved.tank;
+  } catch(e) {}
+  document.getElementById('sUrl').value  = cfg.url;
+  document.getElementById('sKey').value  = cfg.key;
+  document.getElementById('sTank').value = cfg.tank;
+}
+
+function saveSettings() {
+  cfg.url  = document.getElementById('sUrl').value.trim().replace(/\/$/, '');
+  cfg.key  = document.getElementById('sKey').value.trim();
+  cfg.tank = parseFloat(document.getElementById('sTank').value) || 30;
+  localStorage.setItem(LS_CFG, JSON.stringify(cfg));
+  setSyncDot('syncing');
+  syncAll().then(() => {
+    alert('Settings saved! Syncing data...');
+  });
+}
+
+// ── Cache ──────────────────────────────────────────────────
+function loadCache() {
+  try { fillUps = JSON.parse(localStorage.getItem(LS_CACHE) || '[]'); } catch(e) { fillUps = []; }
+}
+
+function saveCache() {
+  localStorage.setItem(LS_CACHE, JSON.stringify(fillUps));
+}
+
+// ── Offline Queue ──────────────────────────────────────────
+function loadQueue() {
+  try { offlineQueue = JSON.parse(localStorage.getItem(LS_QUEUE) || '[]'); } catch(e) { offlineQueue = []; }
+  updateQueueBadge();
+}
+
+function saveQueue() {
+  localStorage.setItem(LS_QUEUE, JSON.stringify(offlineQueue));
+  updateQueueBadge();
+}
+
+function updateQueueBadge() {
+  const badge = document.getElementById('offlineBadge');
+  const count = document.getElementById('queueCount');
+  count.textContent = offlineQueue.length;
+  badge.classList.toggle('show', offlineQueue.length > 0);
+}
+
+// ── Sync ───────────────────────────────────────────────────
+function setSyncDot(state) {
+  const d = document.getElementById('syncDot');
+  d.className = 'sync-dot' + (state ? ' ' + state : '');
+}
+
+async function syncAll() {
+  if (!cfg.url || !cfg.key) { setSyncDot('error'); return; }
+  setSyncDot('syncing');
+
+  // Flush offline queue first
+  for (const entry of [...offlineQueue]) {
+    try {
+      const ok = await pushEntry(entry);
+      if (ok) offlineQueue = offlineQueue.filter(e => e._qid !== entry._qid);
+    } catch(e) {}
+  }
+  saveQueue();
+
+  // Fetch all entries
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/fuel_log?order=fill_date.desc,logged_at.desc&limit=200`, {
+      headers: { 'Authorization': `Bearer ${cfg.key}`, 'apikey': cfg.key }
+    });
+    if (!res.ok) throw new Error('fetch failed');
+    fillUps = await res.json();
+    saveCache();
+    setSyncDot('synced');
+    renderDash();
+    renderHistory();
+  } catch(e) {
+    setSyncDot('error');
+  }
+}
+
+async function pushEntry(entry) {
+  if (!cfg.url || !cfg.key) return false;
+  const body = {
+    fill_date: entry.fill_date,
+    odometer: entry.odometer,
+    gallons: entry.gallons,
+    price_per_gallon: entry.price_per_gallon,
+    total_cost: entry.total_cost,
+    location_name: entry.location_name || null,
+    notes: entry.notes || null,
+    device: 'iPhone PWA'
+  };
+  const res = await fetch(`${cfg.url}/rest/v1/fuel_log`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${cfg.key}`,
+      'apikey': cfg.key,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify(body)
+  });
+  return res.ok;
+}
+
+// ── Fill-Up Form ───────────────────────────────────────────
+function setDefaultDate() {
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('fDate').value = today;
+}
+
+function computePreview() {
+  const gal = parseFloat(document.getElementById('fGallons').value);
+  const ppg = parseFloat(document.getElementById('fPPG').value);
+  const preview = document.getElementById('costPreview');
+  if (gal > 0 && ppg > 0) {
+    document.getElementById('costPreviewAmt').textContent = '$' + (gal * ppg).toFixed(2);
+    preview.classList.add('show');
+  } else {
+    preview.classList.remove('show');
+  }
+}
+
+async function submitFill() {
+  const dateVal = document.getElementById('fDate').value;
+  const galVal  = parseFloat(document.getElementById('fGallons').value);
+  const ppgVal  = parseFloat(document.getElementById('fPPG').value);
+  const odoVal  = parseInt(document.getElementById('fOdo').value);
+  const locVal  = document.getElementById('fLoc').value.trim();
+  const noteVal = document.getElementById('fNotes').value.trim();
+
+  if (!dateVal) { showFormMsg('Date is required.', true); return; }
+  if (isNaN(galVal) || galVal <= 0) { showFormMsg('Enter valid gallons.', true); return; }
+  if (isNaN(ppgVal) || ppgVal <= 0) { showFormMsg('Enter valid price/gallon.', true); return; }
+  if (isNaN(odoVal) || odoVal <= 0) { showFormMsg('Enter odometer reading.', true); return; }
+
+  const entry = {
+    _qid: Date.now() + Math.random(),
+    fill_date: dateVal,
+    odometer: odoVal,
+    gallons: galVal,
+    price_per_gallon: ppgVal,
+    total_cost: +(galVal * ppgVal).toFixed(2),
+    location_name: locVal || null,
+    notes: noteVal || null,
+  };
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  if (cfg.url && cfg.key) {
+    const ok = await pushEntry(entry).catch(() => false);
+    if (ok) {
+      showFormMsg('✓ Fill-up logged and synced!', false);
+      syncAll();
+    } else {
+      offlineQueue.push(entry);
+      saveQueue();
+      // Add to local cache immediately
+      fillUps.unshift({ ...entry, id: 'local-' + entry._qid, logged_at: new Date().toISOString() });
+      saveCache();
+      showFormMsg('Saved offline — will sync when connected.', false);
+      renderDash();
+      renderHistory();
+    }
+  } else {
+    // No config — store offline
+    offlineQueue.push(entry);
+    saveQueue();
+    fillUps.unshift({ ...entry, id: 'local-' + entry._qid, logged_at: new Date().toISOString() });
+    saveCache();
+    showFormMsg('Add Supabase keys in Settings to sync across devices.', false);
+    renderDash();
+    renderHistory();
+  }
+
+  // Reset form
+  document.getElementById('fGallons').value = '';
+  document.getElementById('fPPG').value = '';
+  document.getElementById('fOdo').value = '';
+  document.getElementById('fLoc').value = '';
+  document.getElementById('fNotes').value = '';
+  setDefaultDate();
+  computePreview();
+  btn.disabled = false;
+  btn.textContent = 'Log Fill-Up';
+}
+
+function showFormMsg(text, isErr) {
+  const el = document.getElementById('formMsg');
+  el.textContent = text;
+  el.className = 'form-msg show ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => el.className = 'form-msg', 4000);
+}
+
+// ── Dashboard Render ───────────────────────────────────────
+function renderDash() {
+  const sorted = [...fillUps].sort((a, b) => {
+    if (a.fill_date !== b.fill_date) return b.fill_date.localeCompare(a.fill_date);
+    return new Date(b.logged_at) - new Date(a.logged_at);
+  });
+
+  const last = sorted[0];
+  const tank = cfg.tank || 30;
+  const { mpg: effectiveMpg, source: mpgSource, actual: actualMpg } = getEffectiveMpg(sorted);
+
+  let pct = null, estRange = null, galRemaining = null, milesSinceFill = null;
+
+  if (last) {
+    const gallonsFilled = parseFloat(last.gallons);
+    const lastOdo = parseInt(last.odometer);
+    const second = sorted[1];
+
+    // Gauge: gallons filled at last stop = approx tank level right after fill
+    galRemaining = Math.min(gallonsFilled, tank);
+    pct = Math.round((galRemaining / tank) * 100);
+    estRange = Math.round(galRemaining * effectiveMpg);
+
+    if (second) milesSinceFill = lastOdo - parseInt(second.odometer);
+  }
+
+  drawGauge(pct);
+
+  const totalCost = fillUps.reduce((s, f) => s + parseFloat(f.total_cost || 0), 0);
+  document.getElementById('statRange').textContent   = estRange !== null ? estRange : '—';
+  document.getElementById('statGallons').textContent = last ? parseFloat(last.gallons).toFixed(1) : '—';
+  document.getElementById('statCost').textContent    = totalCost > 0 ? '$' + totalCost.toFixed(0) : '—';
+  document.getElementById('statOdo').textContent     = last ? parseInt(last.odometer).toLocaleString() : '—';
+  document.getElementById('statSinceFill').textContent = milesSinceFill !== null && milesSinceFill > 0 ? milesSinceFill.toLocaleString() : '—';
+
+  // MPG badge
+  const mpgBadge = document.getElementById('mpgBadge');
+  if (mpgBadge) {
+    if (actualMpg !== null) {
+      if (mpgSource === 'actual') {
+        mpgBadge.textContent = `${effectiveMpg} mpg (actual — updated from data)`;
+        mpgBadge.className = 'mpg-badge updated';
+      } else {
+        mpgBadge.textContent = `12 mpg est · actual avg ${actualMpg} mpg`;
+        mpgBadge.className = 'mpg-badge default';
+      }
+      mpgBadge.style.display = 'block';
+    } else {
+      mpgBadge.textContent = '12 mpg hardcoded — fill up twice to get real data';
+      mpgBadge.className = 'mpg-badge default';
+      mpgBadge.style.display = 'block';
+    }
+  }
+
+  // Alert
+  const alertEl = document.getElementById('fuelAlert');
+  if (pct !== null) {
+    if (pct < 22) {
+      alertEl.className = 'fuel-alert fill show';
+      alertEl.textContent = '⛽ FILL UP — est. range ' + estRange + ' miles';
+    } else if (pct < 50) {
+      alertEl.className = 'fuel-alert low show';
+      alertEl.textContent = '⚠ LOW FUEL — est. ' + estRange + ' miles remaining';
+    } else {
+      alertEl.className = 'fuel-alert';
+    }
+  }
+
+  // Last fill card
+  const card = document.getElementById('lastFillCard');
+  if (last) {
+    const pairMpg = sorted.length > 1 ? calcMPG(sorted[0], sorted[1]) : null;
+    card.innerHTML = `
+      <div class="fill-item">
+        <div class="fill-left">
+          <div class="fill-date">${formatDate(last.fill_date)}</div>
+          <div class="fill-loc">${last.location_name || 'Unknown location'}</div>
+          <div class="fill-detail">${last.gallons} gal @ $${parseFloat(last.price_per_gallon).toFixed(3)}/gal</div>
+          ${last.notes ? `<div class="fill-detail" style="margin-top:3px;color:var(--faint)">${last.notes}</div>` : ''}
+        </div>
+        <div class="fill-right">
+          <div class="fill-cost">$${parseFloat(last.total_cost || 0).toFixed(2)}</div>
+          <div class="fill-gal">${last.gallons} gal</div>
+          ${pairMpg ? `<div class="fill-mpg">${pairMpg} mpg</div>` : ''}
+        </div>
+      </div>`;
+  } else {
+    card.innerHTML = '<div class="empty-state">No fill-ups logged yet</div>';
+  }
+}
+
+// ── Gauge Drawing ──────────────────────────────────────────
+function drawGauge(pct) {
+  const cx = 80, cy = 82, r = 56;
+  // Arc: from 210° to 330° (total 240°, starting lower-left going clockwise)
+  // Start angle: 210° (lower-left), end angle: -30° (lower-right), sweep: 240°
+  const startDeg = 210, totalDeg = 240;
+
+  function polarToXY(deg) {
+    const rad = (deg - 90) * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  function arcPath(start, end) {
+    const s = polarToXY(start), e = polarToXY(end);
+    const largeArc = (end - start) > 180 ? 1 : 0;
+    return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} 1 ${e.x} ${e.y}`;
+  }
+
+  const track = arcPath(startDeg, startDeg + totalDeg);
+  document.getElementById('gaugeTrack').setAttribute('d', track);
+
+  const gaugePct = document.getElementById('gaugePct');
+  const gaugeStatus = document.getElementById('gaugeStatus');
+
+  if (pct === null) {
+    document.getElementById('gaugeFill').setAttribute('d', '');
+    gaugePct.textContent = '—';
+    gaugeStatus.textContent = '';
+    return;
+  }
+
+  const fillEnd = startDeg + (totalDeg * pct / 100);
+  const fill = pct > 0 ? arcPath(startDeg, Math.min(fillEnd, startDeg + totalDeg)) : '';
+  document.getElementById('gaugeFill').setAttribute('d', fill);
+
+  // Color
+  let color = '#7A9E7E'; // sage = OK
+  let status = 'OK';
+  if (pct < 22) { color = '#B85C38'; status = 'FILL UP'; }
+  else if (pct < 50) { color = '#C9963A'; status = 'LOW'; }
+
+  document.getElementById('gaugeFill').style.stroke = color;
+  gaugePct.textContent = pct + '%';
+  gaugeStatus.textContent = status;
+  gaugeStatus.style.fill = color;
+}
+
+// ── History Render ─────────────────────────────────────────
+function renderHistory() {
+  const sorted = [...fillUps].sort((a, b) => {
+    if (a.fill_date !== b.fill_date) return b.fill_date.localeCompare(a.fill_date);
+    return new Date(b.logged_at) - new Date(a.logged_at);
+  });
+
+  // Trip stats
+  const totalGal  = sorted.reduce((s, f) => s + parseFloat(f.gallons || 0), 0);
+  const totalCost = sorted.reduce((s, f) => s + parseFloat(f.total_cost || 0), 0);
+  const avgPPG    = totalGal > 0 ? totalCost / totalGal : null;
+
+  // Calc avg MPG from consecutive entries
+  let mpgReadings = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const mpg = calcMPG(sorted[i], sorted[i+1]);
+    if (mpg) mpgReadings.push(parseFloat(mpg));
+  }
+  const avgMPG = mpgReadings.length ? (mpgReadings.reduce((a,b) => a+b) / mpgReadings.length).toFixed(1) : null;
+
+  document.getElementById('tripGallons').textContent = totalGal > 0 ? totalGal.toFixed(1) : '—';
+  document.getElementById('tripSpent').textContent   = totalCost > 0 ? '$' + totalCost.toFixed(2) : '$—';
+  document.getElementById('tripAvgPPG').textContent  = avgPPG ? '$' + avgPPG.toFixed(3) : '$—';
+  document.getElementById('tripAvgMPG').textContent  = avgMPG || '—';
+
+  // List
+  const list = document.getElementById('historyList');
+  if (!sorted.length) {
+    list.innerHTML = '<div class="empty-state">No fill-ups logged yet</div>';
+    return;
+  }
+
+  list.innerHTML = sorted.map((f, i) => {
+    const mpg = i < sorted.length - 1 ? calcMPG(f, sorted[i+1]) : null;
+    return `
+      <div class="fill-item">
+        <div class="fill-left">
+          <div class="fill-date">${formatDate(f.fill_date)}</div>
+          <div class="fill-loc">${f.location_name || 'Unknown location'}</div>
+          <div class="fill-detail">${f.gallons} gal @ $${parseFloat(f.price_per_gallon).toFixed(3)}/gal</div>
+          <div class="fill-detail" style="margin-top:2px">Odo: ${parseInt(f.odometer).toLocaleString()} mi</div>
+          ${f.notes ? `<div class="fill-detail" style="margin-top:2px;color:var(--faint)">${f.notes}</div>` : ''}
+        </div>
+        <div class="fill-right">
+          <div class="fill-cost">$${parseFloat(f.total_cost || 0).toFixed(2)}</div>
+          <div class="fill-gal">${f.gallons} gal</div>
+          ${mpg ? `<div class="fill-mpg">${mpg} mpg</div>` : ''}
+          ${(f.id+'').startsWith('local-') ? '<div style="font-size:8px;color:var(--faint);margin-top:2px">pending sync</div>' : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function calcMPG(newer, older) {
+  // MPG = miles driven between fills / gallons pumped at the older fill-up
+  // (gallons at older fill = fuel consumed to travel those miles)
+  if (!newer || !older) return null;
+  const miles = parseInt(newer.odometer) - parseInt(older.odometer);
+  const gal   = parseFloat(older.gallons);
+  if (miles <= 0 || gal <= 0 || miles > 3000) return null;
+  return (miles / gal).toFixed(1);
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[m-1]} ${d}, ${y}`;
+}
+
+// ── CSV Export ─────────────────────────────────────────────
+function exportCSV() {
+  if (!fillUps.length) { alert('No fill-ups to export yet.'); return; }
+  const sorted = [...fillUps].sort((a,b) => a.fill_date.localeCompare(b.fill_date));
+  const header = 'Date,Odometer,Gallons,Price/Gal,Total Cost,Location,Notes,MPG\n';
+  const rows = sorted.map((f, i) => {
+    const mpg = i > 0 ? calcMPG(f, sorted[i-1]) : '';
+    return [
+      f.fill_date,
+      f.odometer,
+      f.gallons,
+      f.price_per_gallon,
+      f.total_cost || '',
+      `"${(f.location_name || '').replace(/"/g,'""')}"`,
+      `"${(f.notes || '').replace(/"/g,'""')}"`,
+      mpg || ''
+    ].join(',');
+  });
+  const csv = header + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `dream-weaver-fuel-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ── Auto-sync every 5 min when tab visible ─────────────────
+setInterval(() => { if (!document.hidden) syncAll(); }, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) syncAll();
+});
+</script>
+</body>
+</html>
