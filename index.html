@@ -359,6 +359,69 @@
   .status-msg.show { display: block; }
 
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Owner Panel ── */
+  .owner-panel { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+
+  .owner-nav-btn {
+    display: flex; align-items: center; gap: 14px;
+    background: linear-gradient(135deg, #12253a 0%, #1d4068 100%);
+    border: 1px solid rgba(91,141,184,0.45);
+    border-radius: 10px; padding: 17px 18px;
+    text-decoration: none; color: var(--cream);
+    transition: opacity 0.15s;
+  }
+  .owner-nav-btn:hover { opacity: 0.88; }
+  .owner-nav-icon { font-size: 26px; flex-shrink: 0; line-height: 1; }
+  .owner-nav-body { flex: 1; min-width: 0; }
+  .owner-nav-label { font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(240,237,230,0.45); margin-bottom: 4px; }
+  .owner-nav-dest  { font-size: 16px; font-weight: 600; color: var(--cream); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .owner-nav-eta   { font-size: 10px; color: rgba(240,237,230,0.5); text-align: right; flex-shrink: 0; padding-left: 8px; line-height: 1.5; }
+
+  .owner-quick-btn {
+    display: block; width: 100%;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 10px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.05em;
+    color: var(--cream); cursor: pointer; text-align: center;
+    text-decoration: none; transition: border-color 0.15s;
+  }
+  .owner-quick-btn:hover { border-color: var(--gold); }
+
+  .owner-section-label {
+    font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 8px; padding-bottom: 7px;
+    border-bottom: 1px solid var(--border);
+  }
+  .owner-section-label::before { content: '//  '; color: var(--faint); }
+
+  .owner-stop-list { display: flex; flex-direction: column; gap: 5px; }
+  .owner-stop-row {
+    display: flex; align-items: center; gap: 11px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 11px 14px; cursor: pointer;
+    transition: border-color 0.15s, opacity 0.2s; user-select: none;
+  }
+  .owner-stop-row:active { opacity: 0.7; }
+  .owner-stop-row.arrived  { border-color: rgba(201,150,58,0.55); }
+  .owner-stop-row.departed { border-color: rgba(122,158,126,0.35); opacity: 0.45; }
+  .owner-stop-icon { width: 22px; text-align: center; font-size: 13px; font-weight: 700; flex-shrink: 0; color: var(--faint); }
+  .owner-stop-row.arrived  .owner-stop-icon { color: var(--gold); }
+  .owner-stop-row.departed .owner-stop-icon { color: var(--sage); }
+  .owner-stop-body { flex: 1; min-width: 0; }
+  .owner-stop-name { font-size: 11px; color: var(--cream); }
+  .owner-stop-date { font-size: 9px; color: var(--faint); margin-top: 2px; letter-spacing: 0.04em; }
+  .owner-stop-hint { font-size: 8px; letter-spacing: 0.06em; color: var(--faint); text-align: right; margin-top: 4px; }
+
+  .owner-fuel-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .owner-fuel-stat { background: var(--surface); padding: 11px 6px; text-align: center; }
+  .owner-fuel-label { font-size: 7px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+  .owner-fuel-val   { font-size: 14px; font-weight: 600; color: var(--cream); }
+
 </style>
 </head>
 <body>
@@ -453,6 +516,10 @@
   </button>
   <p class="owner-note">Owner view — family sees location only</p>
 </div>
+
+<!-- OWNER PANEL (nav, stop progress, fuel stats — owner only) -->
+<div class="owner-panel" id="ownerPanel" style="display:none;flex-direction:column;gap:10px;"></div>
+
 
 <!-- PHOTOS -->
 <div class="section-head"><span>Photos from the road</span></div>
@@ -1150,6 +1217,7 @@ async function loadFuelLog() {
     }
     renderTripStats();
     const { mpg: effectiveMpg, source: mpgSource } = getEffectiveMpg(logs);
+    tripMpg = effectiveMpg;
 
     const last = logs[0];
     const tank = 45;
@@ -1206,6 +1274,7 @@ async function loadFuelLog() {
         </div>
       </div>`;
     }).join('');
+    updateOwnerFuelStats();
   } catch(e) {
     document.getElementById('fuelLogList').innerHTML = '<div style="font-size:10px;color:var(--faint);text-align:center;padding:16px 0;">Could not load fuel log</div>';
     drawFuelGauge(null);
@@ -1431,15 +1500,97 @@ async function loadWeather() {
   }
 }
 
+
+// ── Owner Panel ──────────────────────────────────────────────
+let tripMpg = null;
+
+function getStopStatus(i) { return localStorage.getItem('ds_stop_' + i) || 'upcoming'; }
+function setStopStatus(i, s) { localStorage.setItem('ds_stop_' + i, s); }
+function cycleStopStatus(i) {
+  const cur = getStopStatus(i);
+  setStopStatus(i, cur === 'upcoming' ? 'arrived' : cur === 'arrived' ? 'departed' : 'upcoming');
+  renderOwnerPanel();
+}
+
+function updateOwnerFuelStats() {
+  const mpgEl   = document.getElementById('ownerMpg');
+  const costEl  = document.getElementById('ownerCost');
+  const rangeEl = document.getElementById('ownerRange');
+  const cpmEl   = document.getElementById('ownerCpm');
+  if (!mpgEl) return;
+  const fRange = document.getElementById('fStatRange');
+  const fCost  = document.getElementById('fStatCost');
+  if (fRange && fRange.textContent !== '—') rangeEl.textContent = fRange.textContent;
+  if (fCost  && fCost.textContent  !== '—') costEl.textContent  = fCost.textContent;
+  if (tripMpg !== null) mpgEl.textContent = tripMpg;
+  if (tripFuelCost > 0 && tripMiles > 0)
+    cpmEl.textContent = (tripFuelCost / tripMiles * 100).toFixed(1) + '¢';
+}
+
+function renderOwnerPanel() {
+  const panel = document.getElementById('ownerPanel');
+  if (!panel || panel.style.display === 'none') return;
+
+  // Next undeparted stop
+  let nextIdx = -1;
+  for (let i = 0; i < stops.length; i++) {
+    if (getStopStatus(i) !== 'departed') { nextIdx = i; break; }
+  }
+  const ns = nextIdx >= 0 ? stops[nextIdx] : null;
+
+  const navHtml = ns ? `
+    <a class="owner-nav-btn" href="https://maps.apple.com/?daddr=${ns.lat},${ns.lng}&dirflg=d" target="_blank">
+      <div class="owner-nav-icon">🗺</div>
+      <div class="owner-nav-body">
+        <div class="owner-nav-label">Navigate to next stop</div>
+        <div class="owner-nav-dest">${ns.name}</div>
+      </div>
+      <div class="owner-nav-eta">${ns.drive ? ns.drive.replace('~','~\n') : ''}</div>
+    </a>` : `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;font-size:11px;color:var(--sage)">✓✓ All stops complete!</div>`;
+
+  const fuelBtn = `<a class="owner-quick-btn" href="fuel-quick.html">⛽&nbsp;&nbsp;Log Fill-Up</a>`;
+
+  const STATUS_ICON = { upcoming: '○', arrived: '✓', departed: '→' };
+  const stopRows = stops.map((s, i) => {
+    const st = getStopStatus(i);
+    return `<div class="owner-stop-row ${st}" onclick="cycleStopStatus(${i})" role="button">
+      <div class="owner-stop-icon">${STATUS_ICON[st]}</div>
+      <div class="owner-stop-body">
+        <div class="owner-stop-name">${s.name}</div>
+        <div class="owner-stop-date">${s.date}${s.state ? ' · ' + s.state : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const checklistHtml = `
+    <div>
+      <div class="owner-section-label">Stop Progress · tap to advance</div>
+      <div class="owner-stop-list">${stopRows}</div>
+      <div class="owner-stop-hint">○ upcoming &nbsp;·&nbsp; ✓ arrived &nbsp;·&nbsp; → departed</div>
+    </div>`;
+
+  const fuelStatsHtml = `
+    <div class="owner-fuel-row">
+      <div class="owner-fuel-stat"><div class="owner-fuel-label">MPG</div><div class="owner-fuel-val" id="ownerMpg">—</div></div>
+      <div class="owner-fuel-stat"><div class="owner-fuel-label">Trip Cost</div><div class="owner-fuel-val" id="ownerCost">—</div></div>
+      <div class="owner-fuel-stat"><div class="owner-fuel-label">Range</div><div class="owner-fuel-val" id="ownerRange">—</div></div>
+      <div class="owner-fuel-stat"><div class="owner-fuel-label">¢ / Mile</div><div class="owner-fuel-val" id="ownerCpm">—</div></div>
+    </div>`;
+
+  panel.innerHTML = navHtml + fuelBtn + checklistHtml + fuelStatsHtml;
+  updateOwnerFuelStats();
+}
+
 // ── Init ───────────────────────────────────────────────────
 const isOwner = window.location.search.includes('owner=true');
 if (!isOwner) document.getElementById('updateWrap').style.display = 'none';
 else document.getElementById('addStopBtn').style.display = 'block';
 
-// Fuel tracker link — owner only
 if (isOwner) {
-  document.getElementById('fuelTrackerLink').innerHTML =
-    '<a href="fuel-quick.html" class="fuel-open-link">Open Fuel Tracker →</a>';
+  const op = document.getElementById('ownerPanel');
+  if (op) op.style.display = 'flex';
+  renderOwnerPanel();
 }
 
 const siteUrl = window.location.hostname !== 'localhost' ? window.location.href : 'your-site.netlify.app';

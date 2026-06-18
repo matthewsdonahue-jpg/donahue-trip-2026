@@ -18,7 +18,10 @@ SUPABASE DASHBOARD
 https://supabase.com/dashboard/project/sizbwulpzanxvpvooxiz
 
 NETLIFY DASHBOARD
-https://app.netlify.com/sites/donahue-trip-2026
+https://app.netlify.com/projects/donahue-trip-2026/overview
+
+GITHUB REPO
+https://github.com/matthewsdonahue-jpg/donahue-trip-2026
 --------------------------------
 
 NOTES
@@ -26,4 +29,8 @@ NOTES
 - Owner view: update Dream Weaver's live location, edit itinerary inline
 - Fuel Tracker: tap ⋯ > Add to Home Screen on iPhone/iPad for PWA install
 - Itinerary Editor: publish button syncs stops to the live site instantly
-- To redeploy: drag donahue-trip folder to netlify.app/drop
+
+TO DEPLOY CHANGES (auto-deploy via GitHub):
+  cd ~/Downloads/donahue-trip
+  git add -A && git commit -m "update" && git push
+  → Netlify deploys automatically in ~30 seconds
