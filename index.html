@@ -422,6 +422,124 @@
   .owner-fuel-label { font-size: 7px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
   .owner-fuel-val   { font-size: 14px; font-weight: 600; color: var(--cream); }
 
+
+  /* ── Owner / iPad layout ─────────────────────────────── */
+
+  /* Owner-specific overrides (body.is-owner set by JS) */
+  body.is-owner {
+    max-width: 900px;
+    padding: 0 20px 80px;
+  }
+  body.is-owner .site-header {
+    padding: 16px 0 12px;
+  }
+  body.is-owner .trip-title {
+    font-size: 22px;
+  }
+  body.is-owner .header-badges {
+    margin-top: 8px;
+  }
+  /* De-emphasize map on owner view */
+  body.is-owner #map {
+    height: 180px;
+  }
+  body.is-owner .map-wrap {
+    margin-bottom: 12px;
+  }
+  /* Hide decorative/sharing sections on owner view */
+  body.is-owner .photos-section-wrap,
+  body.is-owner .share-section {
+    display: none !important;
+  }
+
+  /* ── Owner Top Dashboard ── */
+  #ownerTop {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  #ownerTop::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--sky), rgba(91,141,184,0.3));
+  }
+  .owner-dash-label {
+    font-size: 8px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--sky); margin-bottom: 2px;
+  }
+  .owner-dash-label::before { content: '//  '; color: var(--faint); }
+
+  /* Quick action row */
+  .owner-quick-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .owner-quick-btn {
+    display: block;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 10px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.04em;
+    color: var(--cream); cursor: pointer; text-align: center;
+    text-decoration: none; transition: border-color 0.15s; width: 100%;
+  }
+  .owner-quick-btn:hover { border-color: var(--sky); }
+
+  /* Stop checklist */
+  .owner-stop-hint {
+    font-size: 8px; letter-spacing: 0.06em; color: var(--faint);
+    text-align: right; margin-top: 4px;
+  }
+
+  /* ── iPad breakpoint (768px+) ── */
+  @media (min-width: 768px) {
+    body.is-owner #ownerTop {
+      padding: 20px 24px;
+    }
+
+    /* Stop list: 2 columns */
+    body.is-owner .owner-stop-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    /* Stats strip: larger values on iPad */
+    body.is-owner .stat-cell-val { font-size: 24px; }
+    body.is-owner .stat-cell { padding: 16px 12px; }
+
+    /* Side-by-side: weather + location card */
+    body.is-owner .loc-weather-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    body.is-owner .loc-weather-row .weather-card,
+    body.is-owner .loc-weather-row .loc-card {
+      margin-bottom: 0;
+    }
+
+    /* Itinerary 2-up */
+    body.is-owner .itinerary-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    /* Parks & States side by side */
+    body.is-owner .parks-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -434,6 +552,9 @@
   <div class="trip-sub">Ogden, UT &nbsp;→&nbsp; Rhode Island &nbsp;·&nbsp; Eastbound &nbsp;·&nbsp; Jun 19 – late June</div>
   <div class="header-badges" id="headerBadges"></div>
 </header>
+
+<!-- OWNER DASHBOARD (owner only, populated by JS) -->
+<div id="ownerTop"></div>
 
 <!-- STATS STRIP -->
 <div class="stats-strip">
@@ -459,7 +580,8 @@
   </div>
 </div>
 
-<!-- WEATHER -->
+<!-- WEATHER + LOC (wrapped for iPad 2-col) -->
+<div class="loc-weather-row">
 <div class="weather-card" id="weatherCard" style="display:none">
   <div class="weather-icon" id="weatherIcon">🌤</div>
   <div class="weather-body">
@@ -506,6 +628,7 @@
     </div>
   </div>
 </div>
+</div><!-- /loc-weather-row -->
 
 <!-- UPDATE BUTTON -->
 <div class="update-wrap" id="updateWrap">
@@ -522,6 +645,7 @@
 
 
 <!-- PHOTOS -->
+<div class="photos-section-wrap">
 <div class="section-head"><span>Photos from the road</span></div>
 <a href="https://www.icloud.com/sharedalbum/#B1iGY3uThGy4lZV" target="_blank" rel="noopener" class="photos-link-card">
   <div class="photos-link-left">
@@ -533,6 +657,7 @@
   </div>
   <div class="photos-link-arrow">→</div>
 </a>
+</div><!-- /photos-section-wrap -->
 
 <!-- ITINERARY -->
 <div class="section-head" id="itinHead">
@@ -1528,8 +1653,8 @@ function updateOwnerFuelStats() {
 }
 
 function renderOwnerPanel() {
-  const panel = document.getElementById('ownerPanel');
-  if (!panel || panel.style.display === 'none') return;
+  const top = document.getElementById('ownerTop');
+  if (!top || top.style.display === 'none') return;
 
   // Next undeparted stop
   let nextIdx = -1;
@@ -1538,6 +1663,7 @@ function renderOwnerPanel() {
   }
   const ns = nextIdx >= 0 ? stops[nextIdx] : null;
 
+  // Navigate button
   const navHtml = ns ? `
     <a class="owner-nav-btn" href="https://maps.apple.com/?daddr=${ns.lat},${ns.lng}&dirflg=d" target="_blank">
       <div class="owner-nav-icon">🗺</div>
@@ -1545,12 +1671,21 @@ function renderOwnerPanel() {
         <div class="owner-nav-label">Navigate to next stop</div>
         <div class="owner-nav-dest">${ns.name}</div>
       </div>
-      <div class="owner-nav-eta">${ns.drive ? ns.drive.replace('~','~\n') : ''}</div>
+      <div class="owner-nav-eta">${ns.drive || ''}</div>
     </a>` : `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;font-size:11px;color:var(--sage)">✓✓ All stops complete!</div>`;
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;font-size:11px;color:var(--sage)">✓✓ All stops complete!</div>`;
 
-  const fuelBtn = `<a class="owner-quick-btn" href="fuel-quick.html">⛽&nbsp;&nbsp;Log Fill-Up</a>`;
+  // Quick actions (update location + fuel)
+  const quickHtml = `
+    <div class="owner-quick-row">
+      <button class="owner-quick-btn" id="updateBtn" onclick="shareLocation()">
+        📍&nbsp; Update Location
+      </button>
+      <a class="owner-quick-btn" href="fuel-quick.html">⛽&nbsp; Log Fill-Up</a>
+    </div>
+    <div class="status-msg" id="statusMsg"></div>`;
 
+  // Stop checklist
   const STATUS_ICON = { upcoming: '○', arrived: '✓', departed: '→' };
   const stopRows = stops.map((s, i) => {
     const st = getStopStatus(i);
@@ -1565,11 +1700,12 @@ function renderOwnerPanel() {
 
   const checklistHtml = `
     <div>
-      <div class="owner-section-label">Stop Progress · tap to advance</div>
+      <div class="owner-dash-label">Stop Progress · tap to advance</div>
       <div class="owner-stop-list">${stopRows}</div>
       <div class="owner-stop-hint">○ upcoming &nbsp;·&nbsp; ✓ arrived &nbsp;·&nbsp; → departed</div>
     </div>`;
 
+  // Fuel stats
   const fuelStatsHtml = `
     <div class="owner-fuel-row">
       <div class="owner-fuel-stat"><div class="owner-fuel-label">MPG</div><div class="owner-fuel-val" id="ownerMpg">—</div></div>
@@ -1578,18 +1714,21 @@ function renderOwnerPanel() {
       <div class="owner-fuel-stat"><div class="owner-fuel-label">¢ / Mile</div><div class="owner-fuel-val" id="ownerCpm">—</div></div>
     </div>`;
 
-  panel.innerHTML = navHtml + fuelBtn + checklistHtml + fuelStatsHtml;
+  top.innerHTML = `<div class="owner-dash-label">Command Center</div>` +
+    navHtml + quickHtml + checklistHtml + fuelStatsHtml;
   updateOwnerFuelStats();
 }
 
 // ── Init ───────────────────────────────────────────────────
 const isOwner = window.location.search.includes('owner=true');
-if (!isOwner) document.getElementById('updateWrap').style.display = 'none';
-else document.getElementById('addStopBtn').style.display = 'block';
+// updateWrap: always hide — owner panel has the button; family doesn't need it
+document.getElementById('updateWrap').style.display = 'none';
 
 if (isOwner) {
-  const op = document.getElementById('ownerPanel');
-  if (op) op.style.display = 'flex';
+  document.body.classList.add('is-owner');
+  document.getElementById('addStopBtn').style.display = 'block';
+  const top = document.getElementById('ownerTop');
+  if (top) top.style.display = 'flex';
   renderOwnerPanel();
 }
 
