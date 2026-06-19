@@ -68,18 +68,37 @@
   }
   .stop-card:hover { border-color: var(--faint); }
   .stop-order {
-    width: 32px; flex-shrink: 0; background: var(--surface2);
+    width: 38px; flex-shrink: 0; background: var(--surface2);
     border-right: 1px solid var(--border);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 4px; padding: 8px 0;
+    gap: 6px; padding: 8px 0; cursor: grab; user-select: none; touch-action: none;
   }
-  .order-btn {
-    background: none; border: none; color: var(--faint); cursor: pointer;
-    padding: 2px 6px; font-size: 11px; border-radius: 3px;
-    font-family: 'IBM Plex Mono', monospace;
+  .stop-order:active { cursor: grabbing; }
+  .drag-handle {
+    display: flex; flex-direction: column; gap: 3px; align-items: center; padding: 4px;
   }
-  .order-btn:hover { color: var(--gold); background: rgba(201,150,58,0.1); }
+  .drag-handle span {
+    display: block; width: 14px; height: 2px;
+    background: var(--faint); border-radius: 1px;
+  }
   .order-num { font-size: 9px; color: var(--faint); letter-spacing: 0.05em; }
+  .stop-card.drag-ghost {
+    opacity: 0.35; border-style: dashed;
+  }
+  .stop-card.drag-over-top {
+    border-top: 2px solid var(--gold);
+  }
+  .stop-card.drag-over-bot {
+    border-bottom: 2px solid var(--gold);
+  }
+  #dragFloater {
+    position: fixed; pointer-events: none; z-index: 500;
+    background: var(--surface); border: 1px solid var(--gold);
+    border-radius: 10px; padding: 10px 14px;
+    font-size: 12px; color: var(--cream);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    max-width: 260px; opacity: 0; transition: opacity 0.1s;
+  }
 
   .stop-body { flex: 1; padding: 13px 14px; min-width: 0; }
   .stop-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
@@ -442,6 +461,7 @@ const STATE_ABBR = {
 loadStops();
 setupCategoryToggle();
 setupBadgeToggle();
+initDrag();
 
 // ── Supabase ───────────────────────────────────────────────
 function setSyncState(state, label) {
@@ -516,11 +536,10 @@ function renderList() {
       ? `<span style="font-size:9px;color:var(--faint);letter-spacing:0.04em;">📍 ${parseFloat(s.lat).toFixed(3)}, ${parseFloat(s.lng).toFixed(3)}</span>`
       : `<span style="font-size:9px;color:var(--rust-light);letter-spacing:0.04em;">⚠ No coords</span>`;
 
-    return `<div class="stop-card">
-      <div class="stop-order">
-        <button class="order-btn" onclick="moveStop(${i}, -1)" title="Move up" ${i===0?'style="opacity:0.3;pointer-events:none"':''}>↑</button>
+    return `<div class="stop-card" data-idx="${i}">
+      <div class="stop-order" data-idx="${i}">
+        <div class="drag-handle"><span></span><span></span><span></span></div>
         <span class="order-num">${i+1}</span>
-        <button class="order-btn" onclick="moveStop(${i}, 1)" title="Move down" ${i===stops.length-1?'style="opacity:0.3;pointer-events:none"':''}>↓</button>
       </div>
       <div class="stop-body">
         <div class="stop-top">
@@ -548,13 +567,97 @@ function renderList() {
   }
 }
 
-// ── Reorder ────────────────────────────────────────────────
-function moveStop(idx, dir) {
-  const to = idx + dir;
-  if (to < 0 || to >= stops.length) return;
-  [stops[idx], stops[to]] = [stops[to], stops[idx]];
-  markUnsaved();
+// ── Drag-to-reorder ────────────────────────────────────────
+let dragSrcIdx = null;
+let dragFloater = null;
+let dragOverIdx = null;
+
+function initDrag() {
+  // Create floater once
+  if (!document.getElementById('dragFloater')) {
+    const f = document.createElement('div');
+    f.id = 'dragFloater';
+    document.body.appendChild(f);
+  }
+  dragFloater = document.getElementById('dragFloater');
+
+  document.getElementById('stopList').addEventListener('touchstart', onDragStart, { passive: false });
+  document.addEventListener('touchmove', onDragMove, { passive: false });
+  document.addEventListener('touchend', onDragEnd);
+}
+
+function onDragStart(e) {
+  const handle = e.target.closest('.stop-order');
+  if (!handle) return;
+  e.preventDefault();
+  dragSrcIdx = parseInt(handle.dataset.idx);
+  const card = handle.closest('.stop-card');
+  card.classList.add('drag-ghost');
+  const stop = stops[dragSrcIdx];
+  dragFloater.textContent = `${dragSrcIdx + 1}. ${stop.name}`;
+  dragFloater.style.opacity = '1';
+  moveDragFloater(e.touches[0]);
+}
+
+function onDragMove(e) {
+  if (dragSrcIdx === null) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  moveDragFloater(touch);
+
+  // Find which card we're over
+  clearDragOver();
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (!el) return;
+  const card = el.closest('.stop-card');
+  if (!card) return;
+  const idx = parseInt(card.dataset.idx);
+  if (isNaN(idx) || idx === dragSrcIdx) return;
+  dragOverIdx = idx;
+  const rect = card.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
+  card.classList.add(touch.clientY < midY ? 'drag-over-top' : 'drag-over-bot');
+}
+
+function onDragEnd(e) {
+  if (dragSrcIdx === null) return;
+
+  // Determine final insert position
+  if (dragOverIdx !== null && dragOverIdx !== dragSrcIdx) {
+    const touch = e.changedTouches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const card = el && el.closest('.stop-card');
+    let insertBefore = dragOverIdx;
+    if (card) {
+      const rect = card.getBoundingClientRect();
+      if (touch.clientY >= rect.top + rect.height / 2) insertBefore = dragOverIdx + 1;
+    }
+    // Adjust for removal of src
+    const item = stops.splice(dragSrcIdx, 1)[0];
+    const dest = insertBefore > dragSrcIdx ? insertBefore - 1 : insertBefore;
+    stops.splice(dest, 0, item);
+    markUnsaved();
+  }
+
+  // Clean up
+  clearDragOver();
+  document.querySelectorAll('.stop-card.drag-ghost').forEach(c => c.classList.remove('drag-ghost'));
+  if (dragFloater) dragFloater.style.opacity = '0';
+  dragSrcIdx = null;
+  dragOverIdx = null;
   renderList();
+}
+
+function moveDragFloater(touch) {
+  if (!dragFloater) return;
+  dragFloater.style.left = (touch.clientX - 20) + 'px';
+  dragFloater.style.top  = (touch.clientY - 48) + 'px';
+}
+
+function clearDragOver() {
+  document.querySelectorAll('.drag-over-top, .drag-over-bot').forEach(c => {
+    c.classList.remove('drag-over-top', 'drag-over-bot');
+  });
 }
 
 function markUnsaved() {
