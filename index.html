@@ -146,7 +146,7 @@
   }
   .update-btn:hover { opacity: 0.88; }
   .update-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .owner-note { font-size: 9px; letter-spacing: 0.06em; color: var(--faint); text-align: center; margin-top: 7px; text-transform: uppercase; }
+  .owner-note { font-size: 11px; letter-spacing: 0.05em; color: rgba(240,237,230,0.45); text-align: center; margin-top: 7px; text-transform: uppercase; }
 
   /* ── Section head ── */
   .section-head {
@@ -374,26 +374,26 @@
   .owner-nav-btn:hover { opacity: 0.88; }
   .owner-nav-icon { font-size: 26px; flex-shrink: 0; line-height: 1; }
   .owner-nav-body { flex: 1; min-width: 0; }
-  .owner-nav-label { font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(240,237,230,0.45); margin-bottom: 4px; }
-  .owner-nav-dest  { font-size: 16px; font-weight: 600; color: var(--cream); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .owner-nav-eta   { font-size: 10px; color: rgba(240,237,230,0.5); text-align: right; flex-shrink: 0; padding-left: 8px; line-height: 1.5; }
+  .owner-nav-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(240,237,230,0.65); margin-bottom: 4px; }
+  .owner-nav-dest  { font-size: 18px; font-weight: 600; color: var(--cream); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .owner-nav-eta   { font-size: 12px; color: rgba(240,237,230,0.7); text-align: right; flex-shrink: 0; padding-left: 8px; line-height: 1.5; }
 
   .owner-quick-btn {
     display: block; width: 100%;
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 8px; padding: 14px 10px;
-    font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.05em;
+    font-family: 'IBM Plex Mono', monospace; font-size: 14px; letter-spacing: 0.04em;
     color: var(--cream); cursor: pointer; text-align: center;
     text-decoration: none; transition: border-color 0.15s;
   }
   .owner-quick-btn:hover { border-color: var(--gold); }
 
   .owner-section-label {
-    font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--gold); margin-bottom: 8px; padding-bottom: 7px;
     border-bottom: 1px solid var(--border);
   }
-  .owner-section-label::before { content: '//  '; color: var(--faint); }
+  .owner-section-label::before { content: '//  '; color: rgba(201,150,58,0.5); }
 
   .owner-stop-list { display: flex; flex-direction: column; gap: 5px; }
   .owner-stop-row {
@@ -405,13 +405,13 @@
   .owner-stop-row:active { opacity: 0.7; }
   .owner-stop-row.arrived  { border-color: rgba(201,150,58,0.55); }
   .owner-stop-row.departed { border-color: rgba(122,158,126,0.35); opacity: 0.45; }
-  .owner-stop-icon { width: 22px; text-align: center; font-size: 13px; font-weight: 700; flex-shrink: 0; color: var(--faint); }
+  .owner-stop-icon { width: 24px; text-align: center; font-size: 16px; font-weight: 700; flex-shrink: 0; color: rgba(240,237,230,0.5); }
   .owner-stop-row.arrived  .owner-stop-icon { color: var(--gold); }
   .owner-stop-row.departed .owner-stop-icon { color: var(--sage); }
   .owner-stop-body { flex: 1; min-width: 0; }
-  .owner-stop-name { font-size: 11px; color: var(--cream); }
-  .owner-stop-date { font-size: 9px; color: var(--faint); margin-top: 2px; letter-spacing: 0.04em; }
-  .owner-stop-hint { font-size: 8px; letter-spacing: 0.06em; color: var(--faint); text-align: right; margin-top: 4px; }
+  .owner-stop-name { font-size: 14px; color: var(--cream); }
+  .owner-stop-date { font-size: 11px; color: rgba(240,237,230,0.6); margin-top: 3px; letter-spacing: 0.03em; }
+  .owner-stop-hint { font-size: 10px; letter-spacing: 0.04em; color: rgba(240,237,230,0.5); text-align: right; margin-top: 4px; }
 
   .owner-fuel-row {
     display: grid; grid-template-columns: repeat(4, 1fr);
@@ -419,8 +419,8 @@
     border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
   }
   .owner-fuel-stat { background: var(--surface); padding: 11px 6px; text-align: center; }
-  .owner-fuel-label { font-size: 7px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
-  .owner-fuel-val   { font-size: 14px; font-weight: 600; color: var(--cream); }
+  .owner-fuel-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(240,237,230,0.6); margin-bottom: 4px; }
+  .owner-fuel-val   { font-size: 18px; font-weight: 600; color: var(--cream); }
 
 
   /* ── Owner / iPad layout ─────────────────────────────── */
@@ -471,10 +471,10 @@
     background: linear-gradient(90deg, var(--sky), rgba(91,141,184,0.3));
   }
   .owner-dash-label {
-    font-size: 8px; letter-spacing: 0.22em; text-transform: uppercase;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--sky); margin-bottom: 2px;
   }
-  .owner-dash-label::before { content: '//  '; color: var(--faint); }
+  .owner-dash-label::before { content: '//  '; color: rgba(91,141,184,0.5); }
 
   /* Quick action row */
   .owner-quick-row {
@@ -484,7 +484,7 @@
     display: block;
     background: var(--surface2); border: 1px solid var(--border);
     border-radius: 8px; padding: 14px 10px;
-    font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.04em;
+    font-family: 'IBM Plex Mono', monospace; font-size: 14px; letter-spacing: 0.03em;
     color: var(--cream); cursor: pointer; text-align: center;
     text-decoration: none; transition: border-color 0.15s; width: 100%;
   }
@@ -492,12 +492,12 @@
 
   /* Stop checklist */
   .owner-stop-hint {
-    font-size: 8px; letter-spacing: 0.06em; color: var(--faint);
+    font-size: 10px; letter-spacing: 0.04em; color: rgba(240,237,230,0.5);
     text-align: right; margin-top: 4px;
   }
   .owner-stop-res-badge {
-    font-size: 9px; color: var(--gold); margin-left: auto; flex-shrink: 0;
-    letter-spacing: 0.04em; opacity: 0.8;
+    font-size: 11px; color: var(--gold); margin-left: auto; flex-shrink: 0;
+    letter-spacing: 0.03em; opacity: 0.9;
   }
 
   /* Reservation cards */
@@ -513,14 +513,14 @@
     padding: 11px 14px; border-bottom: 1px solid var(--border);
   }
   .owner-res-type { font-size: 16px; flex-shrink: 0; }
-  .owner-res-name { font-size: 11px; color: var(--cream); flex: 1; }
-  .owner-res-date { font-size: 9px; color: var(--gold); letter-spacing: 0.04em; }
-  .owner-res-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .owner-res-name { font-size: 14px; color: var(--cream); flex: 1; font-weight: 500; }
+  .owner-res-date { font-size: 11px; color: var(--gold); letter-spacing: 0.03em; }
+  .owner-res-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; }
   .owner-res-row { display: flex; gap: 8px; align-items: baseline; }
-  .owner-res-label { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); min-width: 62px; flex-shrink: 0; }
-  .owner-res-val { font-size: 10px; color: var(--text); line-height: 1.4; }
+  .owner-res-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(240,237,230,0.5); min-width: 68px; flex-shrink: 0; }
+  .owner-res-val { font-size: 13px; color: var(--cream); line-height: 1.4; }
   .owner-res-val a { color: var(--sky); text-decoration: none; }
-  .owner-res-conf { font-size: 10px; color: var(--gold); font-weight: 600; }
+  .owner-res-conf { font-size: 13px; color: var(--gold); font-weight: 600; }
 
   /* ── iPad breakpoint (768px+) ── */
   @media (min-width: 768px) {
