@@ -722,14 +722,15 @@
   <div class="fuel-alert-strip" id="fuelAlertStrip"></div>
 
   <div class="fuel-dash-card">
-    <div class="fuel-gauge-wrap">
-      <svg viewBox="0 0 160 110" width="180" height="124" overflow="visible">
+    <div class="fuel-gauge-wrap" onclick="promptFuelOdo()" style="cursor:pointer;" title="Tap to update odometer">
+      <svg viewBox="0 0 160 120" width="180" height="135" overflow="visible">
         <path id="fGaugeTrack" fill="none" stroke="#3A3730" stroke-width="9" stroke-linecap="round" d=""/>
         <path id="fGaugeFill"  fill="none" stroke="#7A9E7E" stroke-width="9" stroke-linecap="round" d="" style="transition:stroke-dashoffset 0.6s ease,stroke 0.4s;"/>
         <text x="12"  y="100" fill="#5A5750" font-family="monospace" font-size="7" text-anchor="middle">E</text>
         <text x="148" y="100" fill="#5A5750" font-family="monospace" font-size="7" text-anchor="middle">F</text>
         <text id="fGaugePct"    x="80" y="64" fill="#F0EDE6" font-family="monospace" font-size="20" font-weight="600" text-anchor="middle" dominant-baseline="middle">—</text>
         <text id="fGaugeStatus" x="80" y="82" fill="#8A8780" font-family="monospace" font-size="7"  text-anchor="middle" dominant-baseline="middle" letter-spacing="1"></text>
+        <text id="fGaugeOdoHint" x="80" y="112" fill="#5A5750" font-family="monospace" font-size="6.5" text-anchor="middle" dominant-baseline="middle" letter-spacing="0.5">✎ TAP TO UPDATE ODO</text>
       </svg>
     </div>
 
@@ -1285,11 +1286,15 @@ const FUEL_MPG_DEFAULT = 12;
 
 function calcActualMpg(logs) {
   // logs must be sorted newest-first with odometer readings
-  // MPG pair = (newer_odo - older_odo) / older_gallons
+  // MPG = miles driven / gallons pumped at the NEWER fill-up
+  // (you fill to full at the new stop, replacing what you burned getting there)
+  // Skip partial fills — they don't represent a full-tank refill
   const pairs = [];
   for (let i = 0; i < logs.length - 1; i++) {
+    const isPartial = logs[i].notes && logs[i].notes.startsWith('[partial]');
+    if (isPartial) continue;
     const miles = parseInt(logs[i].odometer) - parseInt(logs[i+1].odometer);
-    const gal   = parseFloat(logs[i+1].gallons); // gallons pumped at the older stop = fuel used to travel those miles
+    const gal   = parseFloat(logs[i].gallons); // gallons at NEWER fill = fuel consumed on those miles
     if (miles > 0 && miles < 3000 && gal > 0) pairs.push(miles / gal);
   }
   if (!pairs.length) return null;
@@ -1305,6 +1310,16 @@ function getEffectiveMpg(logs) {
     return { mpg: parseFloat(actual.toFixed(1)), source: 'actual' };
   }
   return { mpg: FUEL_MPG_DEFAULT, source: 'estimated' };
+}
+
+function promptFuelOdo() {
+  const stored = parseInt(localStorage.getItem('dwf_live_odo') || '0') || '';
+  const input = prompt('Enter current odometer (miles):', stored);
+  if (input === null) return;
+  const val = parseInt(String(input).replace(/,/g, ''));
+  if (isNaN(val) || val <= 0) return;
+  localStorage.setItem('dwf_live_odo', val);
+  loadFuelLog(); // re-render gauge with new odo
 }
 
 function fuelArcPath(cx, cy, r, startDeg, endDeg) {
@@ -1381,7 +1396,19 @@ async function loadFuelLog() {
 
     const last = logs[0];
     const tank = 45;
-    const galRemaining = Math.min(parseFloat(last.gallons), tank);
+    const lastFillOdo = parseInt(last.odometer);
+    const isPartial = last.notes && last.notes.startsWith('[partial]');
+
+    // After a full fill the tank is full; after partial fill use actual gallons
+    const galAtFill = isPartial ? Math.min(parseFloat(last.gallons), tank) : tank;
+
+    // Use live odo from localStorage (shared with fuel-quick.html) to estimate current level
+    const storedOdo = parseInt(localStorage.getItem('dwf_live_odo') || '0') || null;
+    const liveOdo = (storedOdo && storedOdo > lastFillOdo) ? storedOdo : lastFillOdo;
+    const milesSinceFill = liveOdo - lastFillOdo;
+    const galConsumed = milesSinceFill / effectiveMpg;
+    const galRemaining = Math.max(0, galAtFill - galConsumed);
+
     const pct = Math.round((galRemaining / tank) * 100);
     const estRange = Math.round(galRemaining * effectiveMpg);
 
