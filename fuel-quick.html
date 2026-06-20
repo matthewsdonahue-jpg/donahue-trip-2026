@@ -349,7 +349,14 @@
     </div>
     <div class="field">
       <label>Notes (optional)</label>
-      <textarea id="fNotes" placeholder="e.g. full tank, good price"></textarea>
+      <textarea id="fNotes" placeholder="e.g. good price, long line"></textarea>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:4px;padding:12px 0 4px;">
+      <input type="checkbox" id="fPartial" style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;">
+      <div>
+        <div style="font-size:11px;color:var(--cream);letter-spacing:0.04em;">Partial fill — didn't top off</div>
+        <div style="font-size:9px;color:var(--faint);margin-top:2px;">Gauge will use actual gallons; this fill excluded from MPG calculation</div>
+      </div>
     </div>
   </div>
 
@@ -419,11 +426,14 @@ const MPG_UPDATE_THRESHOLD = 0.15; // 15% deviation triggers switch to actual MP
 
 function calcActualMpg(entries) {
   // entries sorted newest-first
-  // MPG for a pair = miles driven / gallons pumped at older fill-up
+  // MPG = miles driven between fills / gallons pumped at the NEWER fill-up
+  // (you pump at the new stop to replace what you burned getting there)
+  // Skip partial fills — they don't represent a full tank refill
   const pairs = [];
   for (let i = 0; i < entries.length - 1; i++) {
+    if (entries[i].partial_fill) continue; // partial fills skew MPG
     const miles = parseInt(entries[i].odometer) - parseInt(entries[i+1].odometer);
-    const gal   = parseFloat(entries[i+1].gallons);
+    const gal   = parseFloat(entries[i].gallons); // gallons at NEWER fill = fuel consumed
     if (miles > 0 && miles < 3000 && gal > 0) pairs.push(miles / gal);
   }
   if (!pairs.length) return null;
@@ -511,7 +521,16 @@ function saveSettings() {
 
 // ── Cache ──────────────────────────────────────────────────
 function loadCache() {
-  try { fillUps = JSON.parse(localStorage.getItem(LS_CACHE) || '[]'); } catch(e) { fillUps = []; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_CACHE) || '[]');
+    // Parse [partial] flag from notes field for cached entries
+    fillUps = raw.map(f => {
+      if (f.notes && f.notes.startsWith('[partial] ')) {
+        return { ...f, partial_fill: true, notes: f.notes.slice(10) || null };
+      }
+      return { ...f, partial_fill: f.partial_fill || false };
+    });
+  } catch(e) { fillUps = []; }
 }
 
 function saveCache() {
@@ -561,7 +580,14 @@ async function syncAll() {
       headers: { 'Authorization': `Bearer ${cfg.key}`, 'apikey': cfg.key }
     });
     if (!res.ok) throw new Error('fetch failed');
-    fillUps = await res.json();
+    const raw = await res.json();
+    // Parse [partial] flag encoded in notes field
+    fillUps = raw.map(f => {
+      if (f.notes && f.notes.startsWith('[partial] ')) {
+        return { ...f, partial_fill: true, notes: f.notes.slice(10) || null };
+      }
+      return { ...f, partial_fill: false };
+    });
     saveCache();
     setSyncDot('synced');
     renderDash();
@@ -580,7 +606,8 @@ async function pushEntry(entry) {
     price_per_gallon: entry.price_per_gallon,
     total_cost: entry.total_cost,
     location_name: entry.location_name || null,
-    notes: entry.notes || null,
+    // Encode partial_fill in notes as "[partial] " prefix (no schema change needed)
+    notes: entry.partial_fill ? `[partial] ${entry.notes || ''}`.trim() : (entry.notes || null),
     device: 'iPhone PWA'
   };
   const res = await fetch(`${cfg.url}/rest/v1/fuel_log`, {
@@ -619,8 +646,9 @@ async function submitFill() {
   const galVal  = parseFloat(document.getElementById('fGallons').value);
   const ppgVal  = parseFloat(document.getElementById('fPPG').value);
   const odoVal  = parseInt(document.getElementById('fOdo').value);
-  const locVal  = document.getElementById('fLoc').value.trim();
-  const noteVal = document.getElementById('fNotes').value.trim();
+  const locVal     = document.getElementById('fLoc').value.trim();
+  const noteVal    = document.getElementById('fNotes').value.trim();
+  const partialVal = document.getElementById('fPartial').checked;
 
   if (!dateVal) { showFormMsg('Date is required.', true); return; }
   if (isNaN(galVal) || galVal <= 0) { showFormMsg('Enter valid gallons.', true); return; }
@@ -636,6 +664,7 @@ async function submitFill() {
     total_cost: +(galVal * ppgVal).toFixed(2),
     location_name: locVal || null,
     notes: noteVal || null,
+    partial_fill: partialVal,
   };
 
   const btn = document.getElementById('submitBtn');
@@ -674,6 +703,7 @@ async function submitFill() {
   document.getElementById('fOdo').value = '';
   document.getElementById('fLoc').value = '';
   document.getElementById('fNotes').value = '';
+  document.getElementById('fPartial').checked = false;
   setDefaultDate();
   computePreview();
   btn.disabled = false;
@@ -705,8 +735,12 @@ function renderDash() {
     const lastOdo = parseInt(last.odometer);
     const second = sorted[1];
 
-    // Gauge: gallons filled at last stop = approx tank level right after fill
-    galRemaining = Math.min(gallonsFilled, tank);
+    // Gauge: full fill = assume tank is full; partial fill = use actual gallons
+    if (last.partial_fill) {
+      galRemaining = Math.min(gallonsFilled, tank);
+    } else {
+      galRemaining = tank; // filled to full — tank is full
+    }
     pct = Math.round((galRemaining / tank) * 100);
     estRange = Math.round(galRemaining * effectiveMpg);
 
@@ -766,6 +800,7 @@ function renderDash() {
           <div class="fill-loc">${last.location_name || 'Unknown location'}</div>
           <div class="fill-detail">${last.gallons} gal @ $${parseFloat(last.price_per_gallon).toFixed(3)}/gal</div>
           ${last.notes ? `<div class="fill-detail" style="margin-top:3px;color:var(--faint)">${last.notes}</div>` : ''}
+          ${last.partial_fill ? '<div class="fill-detail" style="margin-top:3px;color:var(--gold)">⚡ partial fill</div>' : ''}
         </div>
         <div class="fill-right">
           <div class="fill-cost">$${parseFloat(last.total_cost || 0).toFixed(2)}</div>
@@ -867,6 +902,7 @@ function renderHistory() {
           <div class="fill-detail">${f.gallons} gal @ $${parseFloat(f.price_per_gallon).toFixed(3)}/gal</div>
           <div class="fill-detail" style="margin-top:2px">Odo: ${parseInt(f.odometer).toLocaleString()} mi</div>
           ${f.notes ? `<div class="fill-detail" style="margin-top:2px;color:var(--faint)">${f.notes}</div>` : ''}
+          ${f.partial_fill ? '<div class="fill-detail" style="margin-top:2px;color:var(--gold)">⚡ partial fill</div>' : ''}
         </div>
         <div class="fill-right">
           <div class="fill-cost">$${parseFloat(f.total_cost || 0).toFixed(2)}</div>
@@ -880,11 +916,13 @@ function renderHistory() {
 
 // ── Helpers ────────────────────────────────────────────────
 function calcMPG(newer, older) {
-  // MPG = miles driven between fills / gallons pumped at the older fill-up
-  // (gallons at older fill = fuel consumed to travel those miles)
+  // MPG = miles driven / gallons pumped at the NEWER fill-up
+  // (you fill up at the new stop to replace what you burned getting there)
+  // Skip if newer fill is partial — doesn't represent a full-tank refill
   if (!newer || !older) return null;
+  if (newer.partial_fill) return null;
   const miles = parseInt(newer.odometer) - parseInt(older.odometer);
-  const gal   = parseFloat(older.gallons);
+  const gal   = parseFloat(newer.gallons);
   if (miles <= 0 || gal <= 0 || miles > 3000) return null;
   return (miles / gal).toFixed(1);
 }
