@@ -1721,10 +1721,10 @@ function renderOwnerPanel() {
   const top = document.getElementById('ownerTop');
   if (!top || top.style.display === 'none') return;
 
-  // Next undeparted stop
+  // Next stop = first upcoming stop (skip arrived and departed)
   let nextIdx = -1;
   for (let i = 0; i < stops.length; i++) {
-    if (getStopStatus(i) !== 'departed') { nextIdx = i; break; }
+    if (getStopStatus(i) === 'upcoming') { nextIdx = i; break; }
   }
   const ns = nextIdx >= 0 ? stops[nextIdx] : null;
 
