@@ -302,10 +302,10 @@
     </div>
 
     <div style="display:flex;gap:10px;">
-      <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
-        <div class="stat-label">Current Odometer</div>
+      <div onclick="promptLiveOdo()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;cursor:pointer;transition:border-color 0.15s;" onmouseenter="this.style.borderColor='var(--gold)'" onmouseleave="this.style.borderColor='var(--border)'">
+        <div class="stat-label">Current Odo ✎</div>
         <div id="statOdo" style="font-size:14px;font-weight:600;color:var(--cream)">—</div>
-        <div class="stat-unit">miles</div>
+        <div class="stat-unit">tap to update</div>
       </div>
       <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
         <div class="stat-label">Miles Since Fill</div>
@@ -459,16 +459,19 @@ let cfg = {
 };
 let fillUps = [];         // from Supabase
 let offlineQueue = [];    // pending posts
+let liveOdo = null;       // current odometer (user-updated, for real-time gauge)
 
 // ── Local storage keys ─────────────────────────────────────
-const LS_CFG   = 'dwf_cfg';
-const LS_CACHE = 'dwf_cache';
-const LS_QUEUE = 'dwf_queue';
+const LS_CFG      = 'dwf_cfg';
+const LS_CACHE    = 'dwf_cache';
+const LS_QUEUE    = 'dwf_queue';
+const LS_LIVE_ODO = 'dwf_live_odo';
 
 // ── Boot ───────────────────────────────────────────────────
 loadCfg();
 loadCache();
 loadQueue();
+liveOdo = parseInt(localStorage.getItem(LS_LIVE_ODO) || '0') || null;
 setDefaultDate();
 computePreview();
 renderDash();
@@ -671,6 +674,10 @@ async function submitFill() {
   btn.disabled = true;
   btn.textContent = 'Saving...';
 
+  // Auto-set live odo to fill-up odo (tank is now full at this reading)
+  liveOdo = odoVal;
+  localStorage.setItem(LS_LIVE_ODO, odoVal);
+
   if (cfg.url && cfg.key) {
     const ok = await pushEntry(entry).catch(() => false);
     if (ok) {
@@ -710,6 +717,23 @@ async function submitFill() {
   btn.textContent = 'Log Fill-Up';
 }
 
+// ── Live Odometer ──────────────────────────────────────────
+function promptLiveOdo() {
+  const sorted = [...fillUps].sort((a, b) => b.fill_date.localeCompare(a.fill_date));
+  const lastFillOdo = sorted[0] ? parseInt(sorted[0].odometer) : 0;
+  const current = liveOdo || lastFillOdo || '';
+  const input = prompt(`Enter current odometer reading (miles):\n\nLast fill-up odo: ${lastFillOdo.toLocaleString()}`, current);
+  if (input === null) return; // cancelled
+  const val = parseInt(input.replace(/,/g, ''));
+  if (isNaN(val) || val <= 0) { alert('Invalid odometer reading.'); return; }
+  if (lastFillOdo && val < lastFillOdo) {
+    if (!confirm(`${val.toLocaleString()} is less than last fill-up odo (${lastFillOdo.toLocaleString()}). Use anyway?`)) return;
+  }
+  liveOdo = val;
+  localStorage.setItem(LS_LIVE_ODO, val);
+  renderDash();
+}
+
 function showFormMsg(text, isErr) {
   const el = document.getElementById('formMsg');
   el.textContent = text;
@@ -732,19 +756,19 @@ function renderDash() {
 
   if (last) {
     const gallonsFilled = parseFloat(last.gallons);
-    const lastOdo = parseInt(last.odometer);
-    const second = sorted[1];
+    const lastFillOdo = parseInt(last.odometer);
 
-    // Gauge: full fill = assume tank is full; partial fill = use actual gallons
-    if (last.partial_fill) {
-      galRemaining = Math.min(gallonsFilled, tank);
-    } else {
-      galRemaining = tank; // filled to full — tank is full
-    }
+    // Gallons at start of current tank (right after last fill-up)
+    const galAtFill = last.partial_fill ? Math.min(gallonsFilled, tank) : tank;
+
+    // If user has entered a live odometer reading, calculate actual consumption
+    const effectiveLiveOdo = (liveOdo && liveOdo > lastFillOdo) ? liveOdo : lastFillOdo;
+    milesSinceFill = effectiveLiveOdo - lastFillOdo;
+    const galConsumed = milesSinceFill / effectiveMpg;
+    galRemaining = Math.max(0, galAtFill - galConsumed);
+
     pct = Math.round((galRemaining / tank) * 100);
     estRange = Math.round(galRemaining * effectiveMpg);
-
-    if (second) milesSinceFill = lastOdo - parseInt(second.odometer);
   }
 
   drawGauge(pct);
@@ -753,8 +777,10 @@ function renderDash() {
   document.getElementById('statRange').textContent   = estRange !== null ? estRange : '—';
   document.getElementById('statGallons').textContent = last ? parseFloat(last.gallons).toFixed(1) : '—';
   document.getElementById('statCost').textContent    = totalCost > 0 ? '$' + totalCost.toFixed(0) : '—';
-  document.getElementById('statOdo').textContent     = last ? parseInt(last.odometer).toLocaleString() : '—';
-  document.getElementById('statSinceFill').textContent = milesSinceFill !== null && milesSinceFill > 0 ? milesSinceFill.toLocaleString() : '—';
+  // Show live odo if set, otherwise show last fill odo
+  const displayOdo = liveOdo || (last ? parseInt(last.odometer) : null);
+  document.getElementById('statOdo').textContent     = displayOdo ? displayOdo.toLocaleString() : '—';
+  document.getElementById('statSinceFill').textContent = milesSinceFill !== null && milesSinceFill > 0 ? milesSinceFill.toLocaleString() : '0';
 
   // MPG badge
   const mpgBadge = document.getElementById('mpgBadge');
