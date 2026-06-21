@@ -1491,16 +1491,26 @@ const ROUTE_STATES_ORDERED = ['UT','CO','NM','TX','OK','AR','TN','VA','MD','PA',
 let currentStateCode = null;
 
 function getVisitedStateSet() {
-  if (currentLat === null) return new Set();
   const visited = new Set();
-  // UT is always visited (starting point)
-  visited.add('UT');
+  visited.add('UT'); // always — starting point
+
+  // Primary: stop status taps (works immediately on owner device, no GPS needed)
   stops.forEach((s, i) => {
-    if (!s.state || !s.lat) return;
-    const passed = isSequentiallyPassed(currentLat, currentLng, i) || haversine(currentLat, currentLng, s.lat, s.lng) < 80;
-    if (passed) visited.add(s.state);
+    if (!s.state) return;
+    const status = getStopStatus(i);
+    if (status === 'arrived' || status === 'departed') visited.add(s.state);
   });
-  if (currentStateCode) visited.add(currentStateCode);
+
+  // Supplementary: GPS-based detection when location is shared
+  if (currentLat !== null) {
+    stops.forEach((s, i) => {
+      if (!s.state || !s.lat) return;
+      const passed = isSequentiallyPassed(currentLat, currentLng, i) || haversine(currentLat, currentLng, s.lat, s.lng) < 80;
+      if (passed) visited.add(s.state);
+    });
+    if (currentStateCode) visited.add(currentStateCode);
+  }
+
   return visited;
 }
 
@@ -1730,6 +1740,7 @@ function cycleStopStatus(i) {
   const cur = getStopStatus(i);
   setStopStatus(i, cur === 'upcoming' ? 'arrived' : cur === 'arrived' ? 'departed' : 'upcoming');
   renderOwnerPanel();
+  renderParksAndStates(); // update state/park visited status immediately
 }
 
 function updateOwnerFuelStats() {
