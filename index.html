@@ -916,6 +916,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 
 let routeLine = null, completedLine = null, vanMarker = null;
 let stopMarkers = [];
+let fullRouteCoords = null; // Road-snapped route geometry from OSRM
 
 // Van icon for map
 const vanIcon = L.divIcon({
@@ -926,15 +927,39 @@ const vanIcon = L.divIcon({
   popupAnchor: [0, -30]
 });
 
-function buildMap() {
+// Fetch road-snapped route geometry from OSRM (free, no API key needed)
+async function fetchOSRMRoute(waypoints) {
+  // OSRM uses lng,lat order in the URL
+  const coordStr = waypoints.map(w => `${w.lng},${w.lat}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.code !== 'Ok' || !data.routes || !data.routes[0]) return null;
+  // Convert GeoJSON [lng, lat] pairs → Leaflet [lat, lng] pairs
+  return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+}
+
+// Find the index in fullRouteCoords closest to a given lat/lng
+function findClosestIndexOnRoute(lat, lng) {
+  if (!fullRouteCoords || !fullRouteCoords.length) return -1;
+  let minDist = Infinity, minIdx = 0;
+  fullRouteCoords.forEach((p, i) => {
+    const d = haversine(lat, lng, p[0], p[1]);
+    if (d < minDist) { minDist = d; minIdx = i; }
+  });
+  return minIdx;
+}
+
+async function buildMap() {
   stopMarkers.forEach(m => map.removeLayer(m));
   stopMarkers = [];
   if (routeLine) map.removeLayer(routeLine);
   if (completedLine) map.removeLayer(completedLine);
 
-  const allPoints = [[ogden.lat, ogden.lng], ...stops.filter(s => s.lat).map(s => [s.lat, s.lng])];
+  const allWaypoints = [ogden, ...stops.filter(s => s.lat).map(s => ({ lat: s.lat, lng: s.lng }))];
+  const allPoints = allWaypoints.map(w => [w.lat, w.lng]);
 
-  // Dashed planned route
+  // Dashed planned route — straight-line fallback while OSRM loads
   routeLine = L.polyline(allPoints, {
     color: '#5A5750', weight: 2, dashArray: '6,7', opacity: 0.8
   }).addTo(map);
@@ -959,6 +984,22 @@ function buildMap() {
 
   map.fitBounds(L.latLngBounds(allPoints).pad(0.1));
   if (currentLat !== null) updateMapPosition(currentLat, currentLng);
+
+  // Fetch road-snapped geometry and replace the straight-line route
+  try {
+    const coords = await fetchOSRMRoute(allWaypoints);
+    if (coords && coords.length > 1) {
+      fullRouteCoords = coords;
+      if (routeLine) map.removeLayer(routeLine);
+      routeLine = L.polyline(fullRouteCoords, {
+        color: '#5A5750', weight: 2, dashArray: '6,7', opacity: 0.8
+      }).addTo(map);
+      // Redraw gold completed-route line with road geometry if van is positioned
+      if (currentLat !== null) updateMapPosition(currentLat, currentLng);
+    }
+  } catch(e) {
+    // OSRM unavailable — straight-line route already displayed, no action needed
+  }
 }
 
 function updateMapPosition(lat, lng) {
@@ -970,11 +1011,21 @@ function updateMapPosition(lat, lng) {
     .bindTooltip('<b>Dream Weaver</b><br>We are here!', { direction: 'top' })
     .addTo(map);
 
-  // Completed route in gold
+  // Completed route in gold — follow road geometry when available, else straight line
   if (completedLine) map.removeLayer(completedLine);
-  completedLine = L.polyline([[ogden.lat, ogden.lng], [lat, lng]], {
-    color: '#C9963A', weight: 3, opacity: 0.9
-  }).addTo(map);
+  if (fullRouteCoords && fullRouteCoords.length > 1) {
+    const idx = findClosestIndexOnRoute(lat, lng);
+    const completedCoords = idx > 0
+      ? [...fullRouteCoords.slice(0, idx + 1), [lat, lng]]
+      : [[ogden.lat, ogden.lng], [lat, lng]];
+    completedLine = L.polyline(completedCoords, {
+      color: '#C9963A', weight: 3, opacity: 0.9
+    }).addTo(map);
+  } else {
+    completedLine = L.polyline([[ogden.lat, ogden.lng], [lat, lng]], {
+      color: '#C9963A', weight: 3, opacity: 0.9
+    }).addTo(map);
+  }
 
   // Update stop markers: visited = filled, upcoming = open ring
   const stopsWithCoords = stops.filter(s => s.lat);
