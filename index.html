@@ -1394,6 +1394,7 @@ async function loadFuelLog() {
     renderTripStats();
     const { mpg: effectiveMpg, source: mpgSource } = getEffectiveMpg(logs);
     tripMpg = effectiveMpg;
+    tripActualMpg = calcActualMpg(logs); // raw calculated value, null until 2+ fills
 
     const last = logs[0];
     const tank = 45;
@@ -1590,8 +1591,9 @@ function renderHeaderBadges() {
 
 // ── Trip Stats ─────────────────────────────────────────────
 const TRIP_START = new Date('2026-06-19');
-let tripFuelCost = null;   // populated by loadFuelLog
-let tripMiles    = null;   // populated by loadFuelLog (odometer) or fallback
+let tripFuelCost  = null;  // populated by loadFuelLog
+let tripMiles     = null;  // populated by loadFuelLog (odometer) or fallback
+let tripActualMpg = null;  // raw calculated MPG from fill-up pairs (null if < 2 fills)
 
 function renderTripStats() {
   // Days on road
@@ -1735,12 +1737,27 @@ function updateOwnerFuelStats() {
   const costEl  = document.getElementById('ownerCost');
   const rangeEl = document.getElementById('ownerRange');
   const cpmEl   = document.getElementById('ownerCpm');
+  const mpgLbl  = document.getElementById('ownerMpgLabel');
   if (!mpgEl) return;
+
+  // MPG: show actual calculated value when available, otherwise show default with "est" label
+  if (tripActualMpg !== null) {
+    mpgEl.textContent = parseFloat(tripActualMpg.toFixed(1));
+    if (mpgLbl) { mpgLbl.textContent = 'MPG (actual)'; mpgLbl.style.color = 'var(--sage)'; }
+  } else if (tripMpg !== null) {
+    mpgEl.textContent = tripMpg + ' est';
+    if (mpgLbl) { mpgLbl.textContent = 'MPG'; mpgLbl.style.color = ''; }
+  }
+
+  // Cost: pull from fuel section
+  const fCost = document.getElementById('fStatCost');
+  if (fCost && fCost.textContent !== '—') costEl.textContent = fCost.textContent;
+
+  // Range: recalculate from fuel gauge section directly
   const fRange = document.getElementById('fStatRange');
-  const fCost  = document.getElementById('fStatCost');
   if (fRange && fRange.textContent !== '—') rangeEl.textContent = fRange.textContent;
-  if (fCost  && fCost.textContent  !== '—') costEl.textContent  = fCost.textContent;
-  if (tripMpg !== null) mpgEl.textContent = tripMpg;
+
+  // Cost per mile
   if (tripFuelCost > 0 && tripMiles > 0)
     cpmEl.textContent = (tripFuelCost / tripMiles * 100).toFixed(1) + '¢';
 }
@@ -1803,7 +1820,7 @@ function renderOwnerPanel() {
   // Fuel stats
   const fuelStatsHtml = `
     <div class="owner-fuel-row">
-      <div class="owner-fuel-stat"><div class="owner-fuel-label">MPG</div><div class="owner-fuel-val" id="ownerMpg">—</div></div>
+      <div class="owner-fuel-stat"><div class="owner-fuel-label" id="ownerMpgLabel">MPG</div><div class="owner-fuel-val" id="ownerMpg">—</div></div>
       <div class="owner-fuel-stat"><div class="owner-fuel-label">Trip Cost</div><div class="owner-fuel-val" id="ownerCost">—</div></div>
       <div class="owner-fuel-stat"><div class="owner-fuel-label">Range</div><div class="owner-fuel-val" id="ownerRange">—</div></div>
       <div class="owner-fuel-stat"><div class="owner-fuel-label">¢ / Mile</div><div class="owner-fuel-val" id="ownerCpm">—</div></div>
