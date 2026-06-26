@@ -1559,7 +1559,12 @@ function getVisitedStateSet() {
       const passed = isSequentiallyPassed(currentLat, currentLng, i) || haversine(currentLat, currentLng, s.lat, s.lng) < 80;
       if (passed) visited.add(s.state);
     });
-    if (currentStateCode) visited.add(currentStateCode);
+    if (currentStateCode) {
+      visited.add(currentStateCode);
+      // Mark all route states before current as visited — we drove through them
+      const routeIdx = ROUTE_STATES_ORDERED.indexOf(currentStateCode);
+      if (routeIdx > 0) ROUTE_STATES_ORDERED.slice(0, routeIdx).forEach(s => visited.add(s));
+    }
   }
 
   return visited;
@@ -1578,7 +1583,10 @@ function renderParksAndStates() {
     } else {
       parkListEl.innerHTML = parks.map((s, idx) => {
         const globalIdx = stops.indexOf(s);
-        const isVisited = hasLocation && (isSequentiallyPassed(currentLat, currentLng, globalIdx) || haversine(currentLat, currentLng, s.lat, s.lng) < 80);
+        const stopStatus = getStopStatus(globalIdx);
+        const isVisitedByTap = stopStatus === 'arrived' || stopStatus === 'departed';
+        const isVisitedByGps = hasLocation && (isSequentiallyPassed(currentLat, currentLng, globalIdx) || haversine(currentLat, currentLng, s.lat, s.lng) < 80);
+        const isVisited = isVisitedByTap || isVisitedByGps;
         const icon = s.badge === 'sp' ? '🌲' : '⛰';
         const type = s.badge === 'sp' ? 'State Park' : "Nat'l Park";
         const statusClass = isVisited ? 'visited' : 'upcoming';
@@ -1598,10 +1606,10 @@ function renderParksAndStates() {
   // States grid
   const statesGridEl = document.getElementById('statesGrid');
   if (statesGridEl) {
-    // All route states plus any from stops that aren't in route order
-    const allStopStates = stops.filter(s => s.state).map(s => s.state);
-    const allStates = ['UT', ...new Set([...ROUTE_STATES_ORDERED.filter(st => allStopStates.includes(st) || st === 'UT'), ...allStopStates])];
-    const uniqueOrdered = [...new Set(['UT', ...allStopStates])];
+    // All route states in order — include ALL (even those without stops, e.g. MD, PA, NJ, NY, CT)
+    const stopStateSet = new Set(stops.filter(s => s.state).map(s => s.state));
+    const extraStopStates = [...stopStateSet].filter(s => !ROUTE_STATES_ORDERED.includes(s));
+    const uniqueOrdered = [...ROUTE_STATES_ORDERED, ...extraStopStates];
 
     statesGridEl.innerHTML = uniqueOrdered.map(code => {
       let cls = 'upcoming';
@@ -1617,7 +1625,7 @@ function renderParksAndStates() {
       if (hasLocation) {
         noteEl.textContent = `${visitedCount} of ${total} states visited · auto-updates with location`;
       } else {
-        noteEl.textContent = `${total} states on route · share location to track progress`;
+        noteEl.textContent = `${visitedCount} of ${total} states visited · share location to auto-detect`;
       }
     }
   }
@@ -1770,6 +1778,8 @@ async function loadReservations() {
     reservations = {};
     const TYPE_ICON = { hotel: '🏨', campground: '🏕' };
     rows.forEach(r => {
+      if (!r.property_name || !r.checkin) return; // skip junk/test rows
+      if (reservations[r.stop_index] && reservations[r.stop_index].checkin) return; // don't overwrite good data
       reservations[r.stop_index] = {
         type: TYPE_ICON[r.type] || '📋',
         name: r.property_name,
@@ -1898,7 +1908,7 @@ function renderOwnerPanel() {
       <div class="owner-res-header">
         <div class="owner-res-type">${r.type}</div>
         <div class="owner-res-name">${r.name}</div>
-        <div class="owner-res-date">${r.checkin.split('·')[0].trim()}</div>
+        <div class="owner-res-date">${(r.checkin||'').split('·')[0].trim()}</div>
       </div>
       <div class="owner-res-body">
         ${r.confirmation ? `<div class="owner-res-row"><div class="owner-res-label">Conf #</div><div class="owner-res-conf">${r.confirmation}</div></div>` : ''}
