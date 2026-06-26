@@ -449,6 +449,7 @@
   <div class="trip-stat-grid" id="defStats">
     <div class="trip-stat"><div class="trip-stat-label">DEF Added</div><div class="trip-stat-val" id="defGallons">—</div><div class="trip-stat-unit">gallons</div></div>
     <div class="trip-stat"><div class="trip-stat-label">DEF Spent</div><div class="trip-stat-val" id="defSpent">$—</div><div class="trip-stat-unit">total</div></div>
+    <div class="trip-stat"><div class="trip-stat-label">Last Fill</div><div class="trip-stat-val" id="defLastFill">—</div><div class="trip-stat-unit">of 5 gal tank</div></div>
   </div>
 
   <div class="form-card">
@@ -570,6 +571,7 @@
 // ── Constants ──────────────────────────────────────────────
 const MPG_DEFAULT = 12;
 const MPG_UPDATE_THRESHOLD = 0.15; // 15% deviation triggers switch to actual MPG
+const DEF_TANK = 5; // DEF tank capacity in gallons
 
 function calcActualMpg(entries) {
   // entries sorted newest-first
@@ -578,7 +580,7 @@ function calcActualMpg(entries) {
   // Skip partial fills — they don't represent a full tank refill
   const pairs = [];
   for (let i = 0; i < entries.length - 1; i++) {
-    if (entries[i].partial_fill) continue; // partial fills skew MPG
+    if (entries[i].partial_fill || entries[i].is_def || entries[i+1].is_def) continue; // skip partials and DEF
     const miles = parseInt(entries[i].odometer) - parseInt(entries[i+1].odometer);
     const gal   = parseFloat(entries[i].gallons); // gallons at NEWER fill = fuel consumed
     if (miles > 0 && miles < 3000 && gal > 0) pairs.push(miles / gal);
@@ -613,6 +615,37 @@ const LS_CFG      = 'dwf_cfg';
 const LS_CACHE    = 'dwf_cache';
 const LS_QUEUE    = 'dwf_queue';
 const LS_LIVE_ODO = 'dwf_live_odo';
+
+// ── Live odometer — Supabase-backed, localStorage fallback ─
+function saveLiveOdoRemote(val) {
+  if (!cfg.url || !cfg.key) return;
+  liveOdo = val;
+  localStorage.setItem(LS_LIVE_ODO, val); // keep local fallback for offline
+  fetch(`${cfg.url}/rest/v1/trip_config`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${cfg.key}`,
+      'apikey': cfg.key,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify({ key: 'live_odo', value: val, updated_at: new Date().toISOString() })
+  }).catch(() => {}); // fire-and-forget, localStorage is the offline fallback
+}
+
+async function loadLiveOdoRemote() {
+  if (!cfg.url || !cfg.key) return;
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/trip_config?key=eq.live_odo&limit=1`, {
+      headers: { 'Authorization': `Bearer ${cfg.key}`, 'apikey': cfg.key }
+    });
+    const rows = await res.json();
+    if (rows[0]?.value) {
+      liveOdo = parseInt(rows[0].value);
+      localStorage.setItem(LS_LIVE_ODO, liveOdo);
+    }
+  } catch(e) {}
+}
 
 // ── Boot ───────────────────────────────────────────────────
 loadCfg();
@@ -720,6 +753,7 @@ function setSyncDot(state) {
 async function syncAll() {
   if (!cfg.url || !cfg.key) { setSyncDot('error'); return; }
   setSyncDot('syncing');
+  loadLiveOdoRemote(); // refresh odo from Supabase (fire-and-forget)
 
   // Flush offline queue first
   for (const entry of [...offlineQueue]) {
@@ -822,8 +856,7 @@ async function submitFill() {
   btn.textContent = 'Saving...';
 
   // Auto-set live odo to fill-up odo (tank is now full at this reading)
-  liveOdo = odoVal;
-  localStorage.setItem(LS_LIVE_ODO, odoVal);
+  saveLiveOdoRemote(odoVal);
 
   if (cfg.url && cfg.key) {
     const ok = await pushEntry(entry).catch(() => false);
@@ -876,8 +909,7 @@ function promptLiveOdo() {
   if (lastFillOdo && val < lastFillOdo) {
     if (!confirm(`${val.toLocaleString()} is less than last fill-up odo (${lastFillOdo.toLocaleString()}). Use anyway?`)) return;
   }
-  liveOdo = val;
-  localStorage.setItem(LS_LIVE_ODO, val);
+  saveLiveOdoRemote(val);
   renderDash();
 }
 
@@ -890,10 +922,11 @@ function showFormMsg(text, isErr) {
 
 // ── Dashboard Render ───────────────────────────────────────
 function renderDash() {
-  const sorted = [...fillUps].sort((a, b) => {
+  const allSorted = [...fillUps].sort((a, b) => {
     if (a.fill_date !== b.fill_date) return b.fill_date.localeCompare(a.fill_date);
     return new Date(b.logged_at) - new Date(a.logged_at);
   });
+  const sorted = allSorted.filter(f => !f.is_def); // diesel only — DEF must not affect gauge or MPG
 
   const last = sorted[0];
   const tank = cfg.tank || 30;
@@ -920,7 +953,7 @@ function renderDash() {
 
   drawGauge(pct);
 
-  const totalCost = fillUps.reduce((s, f) => s + parseFloat(f.total_cost || 0), 0);
+  const totalCost = sorted.reduce((s, f) => s + parseFloat(f.total_cost || 0), 0); // diesel only
   document.getElementById('statRange').textContent   = estRange !== null ? estRange : '—';
   document.getElementById('statGallons').textContent = last ? parseFloat(last.gallons).toFixed(1) : '—';
   document.getElementById('statCost').textContent    = totalCost > 0 ? '$' + totalCost.toFixed(0) : '—';
@@ -1060,34 +1093,29 @@ function renderHistory() {
   document.getElementById('tripAvgPPG').textContent  = avgPPG ? '$' + avgPPG.toFixed(3) : '$—';
   document.getElementById('tripAvgMPG').textContent  = avgMPG || '—';
 
-  // List — all entries (diesel + DEF), diesel gets MPG, DEF gets badge
+  // List — diesel entries only (DEF has its own tab)
   const list = document.getElementById('historyList');
-  if (!allSorted.length) {
+  if (!sorted.length) {
     list.innerHTML = '<div class="empty-state">No fill-ups logged yet</div>';
     return;
   }
 
-  // Build index of diesel-only entries for MPG calc
-  const dieselSorted = sorted; // already filtered above
-  list.innerHTML = allSorted.map((f) => {
-    const isDef = f.is_def;
-    const dieselIdx = dieselSorted.indexOf(f);
-    const mpg = !isDef && dieselIdx < dieselSorted.length - 1 ? calcMPG(f, dieselSorted[dieselIdx+1]) : null;
+  list.innerHTML = sorted.map((f, i) => {
+    const mpg = i < sorted.length - 1 ? calcMPG(f, sorted[i+1]) : null;
     const idStr = JSON.stringify(f.id);
     return `
       <div class="fill-item">
         <div class="fill-left">
-          ${isDef ? '<div class="def-badge">DEF</div>' : ''}
           <div class="fill-date">${formatDate(f.fill_date)}</div>
           <div class="fill-loc">${f.location_name || 'Unknown location'}</div>
-          <div class="fill-detail">${parseFloat(f.gallons).toFixed(isDef?2:3)} gal @ $${parseFloat(f.price_per_gallon).toFixed(isDef?2:3)}/gal</div>
-          ${!isDef ? `<div class="fill-detail" style="margin-top:2px">Odo: ${parseInt(f.odometer).toLocaleString()} mi</div>` : ''}
+          <div class="fill-detail">${parseFloat(f.gallons).toFixed(3)} gal @ $${parseFloat(f.price_per_gallon).toFixed(3)}/gal</div>
+          <div class="fill-detail" style="margin-top:2px">Odo: ${parseInt(f.odometer).toLocaleString()} mi</div>
           ${f.notes ? `<div class="fill-detail" style="margin-top:2px;color:var(--faint)">${f.notes}</div>` : ''}
           ${f.partial_fill ? '<div class="fill-detail" style="margin-top:2px;color:var(--gold)">⚡ partial fill</div>' : ''}
         </div>
         <div class="fill-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-          <div class="fill-cost ${isDef?'def-cost':''}">$${parseFloat(f.total_cost || 0).toFixed(2)}</div>
-          <div class="fill-gal">${parseFloat(f.gallons).toFixed(isDef?2:1)} gal</div>
+          <div class="fill-cost">$${parseFloat(f.total_cost || 0).toFixed(2)}</div>
+          <div class="fill-gal">${parseFloat(f.gallons).toFixed(1)} gal</div>
           ${mpg ? `<div class="fill-mpg">${mpg} mpg</div>` : ''}
           ${(f.id+'').startsWith('local-') ? '<div style="font-size:8px;color:var(--faint)">pending sync</div>' : ''}
         </div>
@@ -1105,8 +1133,10 @@ function renderDefLog() {
 
   const totalGal  = defs.reduce((s, f) => s + parseFloat(f.gallons || 0), 0);
   const totalCost = defs.reduce((s, f) => s + parseFloat(f.total_cost || 0), 0);
-  document.getElementById('defGallons').textContent = totalGal > 0 ? totalGal.toFixed(2) : '—';
-  document.getElementById('defSpent').textContent   = totalCost > 0 ? '$' + totalCost.toFixed(2) : '$—';
+  const lastDefGal = defs.length ? parseFloat(defs[0].gallons) : null;
+  document.getElementById('defGallons').textContent  = totalGal > 0 ? totalGal.toFixed(2) : '—';
+  document.getElementById('defSpent').textContent    = totalCost > 0 ? '$' + totalCost.toFixed(2) : '$—';
+  document.getElementById('defLastFill').textContent = lastDefGal !== null ? lastDefGal.toFixed(2) + ' gal' : '—';
 
   const list = document.getElementById('defList');
   if (!defs.length) {

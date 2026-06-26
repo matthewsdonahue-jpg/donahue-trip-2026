@@ -1364,13 +1364,40 @@ function getEffectiveMpg(logs) {
   return { mpg: FUEL_MPG_DEFAULT, source: 'estimated' };
 }
 
+// ── Live odometer — Supabase-backed ───────────────────────
+let _liveOdo = null;
+
+async function loadLiveOdo() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/trip_config?key=eq.live_odo&limit=1`, {
+      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+    });
+    const rows = await res.json();
+    const v = parseInt(rows[0]?.value);
+    if (v > 0) _liveOdo = v;
+  } catch(e) {}
+}
+
+function saveLiveOdo(val) {
+  _liveOdo = val;
+  fetch(`${SUPABASE_URL}/rest/v1/trip_config`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'apikey': SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify({ key: 'live_odo', value: val, updated_at: new Date().toISOString() })
+  });
+}
+
 function promptFuelOdo() {
-  const stored = parseInt(localStorage.getItem('dwf_live_odo') || '0') || '';
-  const input = prompt('Enter current odometer (miles):', stored);
+  const input = prompt('Enter current odometer (miles):', _liveOdo || '');
   if (input === null) return;
   const val = parseInt(String(input).replace(/,/g, ''));
   if (isNaN(val) || val <= 0) return;
-  localStorage.setItem('dwf_live_odo', val);
+  saveLiveOdo(val);
   loadFuelLog(); // re-render gauge with new odo
 }
 
@@ -1455,9 +1482,8 @@ async function loadFuelLog() {
     // After a full fill the tank is full; after partial fill use actual gallons
     const galAtFill = isPartial ? Math.min(parseFloat(last.gallons), tank) : tank;
 
-    // Use live odo from localStorage (shared with fuel-quick.html) to estimate current level
-    const storedOdo = parseInt(localStorage.getItem('dwf_live_odo') || '0') || null;
-    const liveOdo = (storedOdo && storedOdo > lastFillOdo) ? storedOdo : lastFillOdo;
+    // Use live odo from Supabase trip_config to estimate current level
+    const liveOdo = (_liveOdo && _liveOdo > lastFillOdo) ? _liveOdo : lastFillOdo;
     const milesSinceFill = liveOdo - lastFillOdo;
     const galConsumed = milesSinceFill / effectiveMpg;
     const galRemaining = Math.max(0, galAtFill - galConsumed);
@@ -1833,8 +1859,37 @@ async function loadReservations() {
   } catch(e) { /* silent fail */ }
 }
 
-function getStopStatus(i) { return localStorage.getItem('ds_stop_' + i) || 'upcoming'; }
-function setStopStatus(i, s) { localStorage.setItem('ds_stop_' + i, s); }
+// ── Stop status — Supabase-backed, in-memory cache ────────
+let _stopStatuses = null; // loaded async on init
+
+async function loadStopStatuses() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/trip_config?key=eq.stop_statuses&limit=1`, {
+      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+    });
+    const rows = await res.json();
+    _stopStatuses = rows[0]?.value || {};
+  } catch(e) { _stopStatuses = {}; }
+}
+
+function getStopStatus(i) {
+  return (_stopStatuses && _stopStatuses[i]) || 'upcoming';
+}
+
+function setStopStatus(i, s) {
+  if (!_stopStatuses) _stopStatuses = {};
+  _stopStatuses[i] = s;
+  fetch(`${SUPABASE_URL}/rest/v1/trip_config`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'apikey': SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify({ key: 'stop_statuses', value: _stopStatuses, updated_at: new Date().toISOString() })
+  });
+}
 function cycleStopStatus(i) {
   const cur = getStopStatus(i);
   setStopStatus(i, cur === 'upcoming' ? 'arrived' : cur === 'arrived' ? 'departed' : 'upcoming');
@@ -1987,15 +2042,22 @@ if (isOwner) {
 const siteUrl = window.location.hostname !== 'localhost' ? window.location.href : 'your-site.netlify.app';
 document.getElementById('shareUrl').textContent = siteUrl.replace('?owner=true','');
 
-// Load persisted visited states from Supabase, then render parks & states
-loadPersistedStates().then(() => renderParksAndStates());
+// Load Supabase-backed state on init, then render
+Promise.all([
+  loadPersistedStates(),
+  loadStopStatuses(),
+  loadLiveOdo()
+]).then(() => {
+  renderParksAndStates();
+  if (isOwner) renderOwnerPanel();
+  loadFuelLog();
+});
 
 renderItinerary();
 renderHeaderBadges();
 renderTripStats();
 loadWeather();
 loadStops().then(() => { loadLocation(); renderHeaderBadges(); renderTripStats(); loadWeather(); });
-loadFuelLog();
 </script>
 </body>
 </html>
