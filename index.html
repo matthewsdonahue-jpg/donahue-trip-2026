@@ -1207,7 +1207,7 @@ async function shareLocation() {
       if (c) city = st ? `${c}, ${st}` : c;
       // Store current state code for tracker
       const stateAbbr = STATE_NAME_TO_CODE[st] || gd.address['ISO3166-2-lvl4']?.split('-')[1] || null;
-      if (stateAbbr) currentStateCode = stateAbbr;
+      if (stateAbbr) { currentStateCode = stateAbbr; persistState(stateAbbr); }
     } catch(e) {}
 
     const now = new Date();
@@ -1536,17 +1536,34 @@ const STATE_NAME_TO_CODE = {
   'Minnesota':'MN','North Dakota':'ND','South Dakota':'SD','Nebraska':'NE'
 };
 
-// Route states derived from itinerary order — works for any trip, no hardcoding needed
-const ROUTE_STATES_ORDERED = [...new Set(stops.filter(s => s.state).map(s => s.state))];
+// Route states in driving order — update this for each new trip.
+// Include all states you'll pass through, even ones without overnight stops.
+const ROUTE_STATES_ORDERED = ['UT','CO','NM','TX','OK','AR','TN','VA','MD','PA','NJ','NY','CT','RI'];
 
 let currentStateCode = null;
+const LS_VISITED_STATES = 'dwf_visited_states';
+
+function loadPersistedStates() {
+  try { return new Set(JSON.parse(localStorage.getItem(LS_VISITED_STATES) || '[]')); }
+  catch(e) { return new Set(); }
+}
+
+function persistState(code) {
+  const saved = loadPersistedStates();
+  saved.add(code);
+  localStorage.setItem(LS_VISITED_STATES, JSON.stringify([...saved]));
+}
 
 function getVisitedStateSet() {
   const visited = new Set();
 
-  // Find the furthest stop (by route-state position) that's been tapped arrived/departed.
-  // Every route state up to that point has been driven through, even if there's no stop there.
-  let maxRouteIdx = 0; // UT (index 0) is always the start
+  // 1. Persisted GPS states — accumulated across sessions as location was shared in each state
+  loadPersistedStates().forEach(s => visited.add(s));
+
+  // 2. Stop status taps — find furthest tapped stop and light up everything up to it
+  let maxRouteIdx = visited.size > 0
+    ? Math.max(...[...visited].map(s => ROUTE_STATES_ORDERED.indexOf(s)).filter(i => i >= 0))
+    : 0;
   stops.forEach((s, i) => {
     if (!s.state) return;
     const status = getStopStatus(i);
@@ -1555,10 +1572,9 @@ function getVisitedStateSet() {
       if (rIdx > maxRouteIdx) maxRouteIdx = rIdx;
     }
   });
-  // Light up everything up to and including that furthest point
   ROUTE_STATES_ORDERED.slice(0, maxRouteIdx + 1).forEach(s => visited.add(s));
 
-  // Supplementary: GPS-based detection when location is shared
+  // 3. Live GPS — current session
   if (currentLat !== null) {
     stops.forEach((s, i) => {
       if (!s.state || !s.lat) return;
@@ -1567,7 +1583,6 @@ function getVisitedStateSet() {
     });
     if (currentStateCode) {
       visited.add(currentStateCode);
-      // Mark all route states before current as visited — we drove through them
       const routeIdx = ROUTE_STATES_ORDERED.indexOf(currentStateCode);
       if (routeIdx > 0) ROUTE_STATES_ORDERED.slice(0, routeIdx).forEach(s => visited.add(s));
     }
