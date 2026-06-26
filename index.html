@@ -1207,7 +1207,7 @@ async function shareLocation() {
       if (c) city = st ? `${c}, ${st}` : c;
       // Store current state code for tracker
       const stateAbbr = STATE_NAME_TO_CODE[st] || gd.address['ISO3166-2-lvl4']?.split('-')[1] || null;
-      if (stateAbbr) { currentStateCode = stateAbbr; persistState(stateAbbr); }
+      if (stateAbbr) { currentStateCode = stateAbbr; persistState(stateAbbr); } // fire-and-forget async save
     } catch(e) {}
 
     const now = new Date();
@@ -1541,24 +1541,41 @@ const STATE_NAME_TO_CODE = {
 const ROUTE_STATES_ORDERED = ['UT','CO','NM','TX','OK','AR','TN','VA','MD','PA','NJ','NY','CT','RI'];
 
 let currentStateCode = null;
-const LS_VISITED_STATES = 'dwf_visited_states';
+let _persistedStates = null; // cached after first fetch
 
-function loadPersistedStates() {
-  try { return new Set(JSON.parse(localStorage.getItem(LS_VISITED_STATES) || '[]')); }
-  catch(e) { return new Set(); }
+async function loadPersistedStates() {
+  if (_persistedStates) return _persistedStates;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/trip_config?key=eq.visited_states&limit=1`, {
+      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+    });
+    const rows = await res.json();
+    _persistedStates = new Set(rows[0]?.value || []);
+  } catch(e) { _persistedStates = new Set(); }
+  return _persistedStates;
 }
 
-function persistState(code) {
-  const saved = loadPersistedStates();
-  saved.add(code);
-  localStorage.setItem(LS_VISITED_STATES, JSON.stringify([...saved]));
+async function persistState(code) {
+  if (!_persistedStates) await loadPersistedStates();
+  if (_persistedStates.has(code)) return; // already saved
+  _persistedStates.add(code);
+  fetch(`${SUPABASE_URL}/rest/v1/trip_config`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'apikey': SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify({ key: 'visited_states', value: [..._persistedStates], updated_at: new Date().toISOString() })
+  });
 }
 
 function getVisitedStateSet() {
   const visited = new Set();
 
-  // 1. Persisted GPS states — accumulated across sessions as location was shared in each state
-  loadPersistedStates().forEach(s => visited.add(s));
+  // 1. Persisted GPS states from Supabase (cached in _persistedStates after first load)
+  if (_persistedStates) _persistedStates.forEach(s => visited.add(s));
 
   // 2. Stop status taps — find furthest tapped stop and light up everything up to it
   let maxRouteIdx = visited.size > 0
@@ -1970,8 +1987,10 @@ if (isOwner) {
 const siteUrl = window.location.hostname !== 'localhost' ? window.location.href : 'your-site.netlify.app';
 document.getElementById('shareUrl').textContent = siteUrl.replace('?owner=true','');
 
+// Load persisted visited states from Supabase, then render parks & states
+loadPersistedStates().then(() => renderParksAndStates());
+
 renderItinerary();
-renderParksAndStates();
 renderHeaderBadges();
 renderTripStats();
 loadWeather();
