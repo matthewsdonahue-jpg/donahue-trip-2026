@@ -1536,21 +1536,27 @@ const STATE_NAME_TO_CODE = {
   'Minnesota':'MN','North Dakota':'ND','South Dakota':'SD','Nebraska':'NE'
 };
 
-// Route states in order (UT is start, not a stop object)
-const ROUTE_STATES_ORDERED = ['UT','CO','NM','TX','OK','AR','TN','VA','MD','PA','NJ','NY','CT','RI'];
+// Route states derived from itinerary order — works for any trip, no hardcoding needed
+const ROUTE_STATES_ORDERED = [...new Set(stops.filter(s => s.state).map(s => s.state))];
 
 let currentStateCode = null;
 
 function getVisitedStateSet() {
   const visited = new Set();
-  visited.add('UT'); // always — starting point
 
-  // Primary: stop status taps (works immediately on owner device, no GPS needed)
+  // Find the furthest stop (by route-state position) that's been tapped arrived/departed.
+  // Every route state up to that point has been driven through, even if there's no stop there.
+  let maxRouteIdx = 0; // UT (index 0) is always the start
   stops.forEach((s, i) => {
     if (!s.state) return;
     const status = getStopStatus(i);
-    if (status === 'arrived' || status === 'departed') visited.add(s.state);
+    if (status === 'arrived' || status === 'departed') {
+      const rIdx = ROUTE_STATES_ORDERED.indexOf(s.state);
+      if (rIdx > maxRouteIdx) maxRouteIdx = rIdx;
+    }
   });
+  // Light up everything up to and including that furthest point
+  ROUTE_STATES_ORDERED.slice(0, maxRouteIdx + 1).forEach(s => visited.add(s));
 
   // Supplementary: GPS-based detection when location is shared
   if (currentLat !== null) {
